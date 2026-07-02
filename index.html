@@ -737,6 +737,7 @@
         <option value="">Select Combining Mark...</option>
       </select>
       <button class="copy-btn" id="gpos-combine-btn" style="margin-top: 0;">Preview Combined</button>
+      <button class="copy-btn" id="sandbox-clear-btn" style="margin-top: 0; background: #21262d; border-color: #30363d;">Clear Sandbox</button>
     </div>
     
     <div class="sandbox-output" id="sandbox-display">Preview Area</div>
@@ -1348,6 +1349,11 @@
           sandboxInput.value += (base + mark);
           updateSandboxDisplay();
         }
+      });
+
+      document.getElementById('sandbox-clear-btn').addEventListener('click', () => {
+        sandboxInput.value = '';
+        updateSandboxDisplay();
       });
     }
 
