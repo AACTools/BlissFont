@@ -61,6 +61,15 @@ def parse_unicode_pdf():
     return mapping
 
 def update_database_and_json(mappings):
+    # Merge manual overrides for key indicators (continuous form, plural)
+    manual_overrides = {
+        "28043": {"unicode": "U+167E8", "hex_cp": "167E8", "name": "BLISSYMBOL INDICATOR CONTINUOUS"},
+        "27112": {"unicode": "U+167DC", "hex_cp": "167DC", "name": "BLISSYMBOL INDICATOR PLURAL"}
+    }
+    for k, v in manual_overrides.items():
+        if k not in mappings:
+            mappings[k] = v
+
     print("Updating database and JSON mappings...")
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()

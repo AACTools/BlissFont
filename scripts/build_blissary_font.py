@@ -206,6 +206,13 @@ def compile_blissary_weight(weight_name, stroke_val, weight_class, records):
         pua_cp = 0xE000 + idx
         cmap[pua_cp] = glyph_name
         
+        # Add stable Plane 15 PUA codepoint (0xF0000 + BCI ID)
+        try:
+            stable_cp = 0xF0000 + int(bci_id)
+            cmap[stable_cp] = glyph_name
+        except ValueError:
+            pass
+        
         # Check if Blissary SVG exists
         blissary_filename = f"{bci_id}.svg"
         blissary_path = os.path.join(BLISSARY_DIR, blissary_filename)

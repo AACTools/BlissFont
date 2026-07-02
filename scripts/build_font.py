@@ -204,6 +204,13 @@ def compile_weight(weight_name, stroke_val, weight_class, records):
         pua_cp = 0xE000 + idx
         cmap[pua_cp] = glyph_name
         
+        # Add stable Plane 15 PUA codepoint (0xF0000 + BCI ID)
+        try:
+            stable_cp = 0xF0000 + int(bci_id)
+            cmap[stable_cp] = glyph_name
+        except ValueError:
+            pass
+        
         vb_w = r["geometry"]["matrix_metrics"]["base_width"]
         vb_h = 324.0
         scale = upm / vb_h
