@@ -292,12 +292,12 @@
       background: #21262d;
       border: 1px solid var(--border-color);
       color: var(--text-color);
-      padding: 4px 8px;
+      padding: 6px 12px;
       border-radius: 4px;
-      font-size: 11px;
+      font-size: 12px;
       cursor: pointer;
       margin-top: 10px;
-      transition: background 0.2s;
+      transition: background 0.2s, border-color 0.2s;
       align-self: flex-start;
     }
 
@@ -432,6 +432,115 @@
       font-weight: bold;
       color: #fff;
     }
+
+    /* Downloads layout */
+    .downloads-layout {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      margin-bottom: 25px;
+    }
+
+    .downloads-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .downloads-card h3 {
+      font-size: 18px;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    .downloads-card p {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 15px;
+      flex-grow: 1;
+    }
+
+    .dl-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .dl-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #161b22;
+      border: 1px solid var(--border-color);
+      padding: 10px 15px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+
+    .dl-item-label {
+      font-weight: bold;
+      color: var(--text-color);
+    }
+
+    .dl-link {
+      color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .dl-link:hover {
+      text-decoration: underline;
+    }
+
+    .guide-section {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 25px;
+      margin-top: 25px;
+    }
+
+    .guide-section h3 {
+      font-size: 18px;
+      color: #fff;
+      margin-bottom: 15px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+    }
+
+    .guide-step {
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+
+    .guide-step strong {
+      color: #fff;
+    }
+
+    code {
+      background: #161b22;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--accent-color);
+    }
+
+    pre {
+      background: #161b22;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 13px;
+      color: var(--text-color);
+      margin: 10px 0;
+      border: 1px solid var(--border-color);
+      overflow-x: auto;
+    }
   </style>
 </head>
 <body>
@@ -471,6 +580,7 @@
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-dir-btn">Browse Symbols Directory</button>
     <button class="tab-btn" id="tab-kbd-btn">Keyboard Layout Guide</button>
+    <button class="tab-btn" id="tab-dl-btn">Download & Install</button>
   </div>
 
   <!-- TAB 1: Directory -->
@@ -538,6 +648,102 @@
     </div>
   </div>
 
+  <!-- TAB 3: Downloads & Install -->
+  <div class="tab-content" id="tab-dl">
+    <div class="downloads-layout">
+      <!-- Font Files -->
+      <div class="downloads-card">
+        <h3>Font Binaries</h3>
+        <p>Download the fully-compiled Blissymbolics OpenType outline font files containing dynamic diacritics positioning and contextual alternate rules.</p>
+        <div class="dl-list">
+          <div class="dl-item">
+            <span class="dl-item-label">BlissFont-Regular.otf</span>
+            <a class="dl-link" href="data/processed/BlissFont-Regular.otf" download>Download (722 KB)</a>
+          </div>
+          <div class="dl-item">
+            <span class="dl-item-label">BlissFont-Regular.woff2</span>
+            <a class="dl-link" href="data/processed/BlissFont-Regular.woff2" download>Download (129 KB)</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIME Input packages -->
+      <div class="downloads-card">
+        <h3>RIME Input Schemas</h3>
+        <p>Download the cross-platform input engine configurations to enable typing Blissymbolics globally across macOS, Windows, and Linux.</p>
+        <div class="dl-list">
+          <div class="dl-item">
+            <span class="dl-item-label">blissymbols.dict.yaml</span>
+            <a class="dl-link" href="data/processed/blissymbols.dict.yaml" download>Download Dict</a>
+          </div>
+          <div class="dl-item">
+            <span class="dl-item-label">blissymbols.schema.yaml</span>
+            <a class="dl-link" href="data/processed/blissymbols.schema.yaml" download>Download Schema</a>
+          </div>
+          <div class="dl-item">
+            <span class="dl-item-label">squirrel.custom.yaml (macOS)</span>
+            <a class="dl-link" href="data/processed/squirrel.custom.yaml" download>Download Config</a>
+          </div>
+          <div class="dl-item">
+            <span class="dl-item-label">weasel.custom.yaml (Windows)</span>
+            <a class="dl-link" href="data/processed/weasel.custom.yaml" download>Download Config</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Unicode data file -->
+      <div class="downloads-card">
+        <h3>Unicode Specification</h3>
+        <p>Download the completed character properties database datafile required for standardized text processing, sorting, and AI token representation.</p>
+        <div class="dl-list">
+          <div class="dl-item">
+            <span class="dl-item-label">Unibliss.txt</span>
+            <a class="dl-link" href="data/processed/Unibliss.txt" download>Download (66 KB)</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Installation Guide -->
+    <div class="guide-section">
+      <h3>Installation Instructions</h3>
+      
+      <div class="guide-step">
+        <strong>1. Install the Font:</strong><br>
+        Download the <code>BlissFont-Regular.otf</code> file, open it on your computer, and click <strong>Install Font</strong>.
+      </div>
+      
+      <div class="guide-step">
+        <strong>2. Set Up RIME Input Engine:</strong><br>
+        Download and install the RIME input engine for your operating system:
+        <ul>
+          <li>macOS: <a href="https://rime.im/download/" target="_blank" style="color: var(--primary-color);">Squirrel</a></li>
+          <li>Windows: <a href="https://rime.im/download/" target="_blank" style="color: var(--primary-color);">Weasel</a></li>
+          <li>Linux: <code>ibus-rime</code> or <code>fcitx-rime</code></li>
+        </ul>
+      </div>
+
+      <div class="guide-step">
+        <strong>3. Copy Configuration Files:</strong><br>
+        Copy the downloaded <code>blissymbols.dict.yaml</code>, <code>blissymbols.schema.yaml</code>, and the OS-specific custom file into your RIME user directory:
+        <ul>
+          <li><strong>macOS (Squirrel)</strong>: Copy files to <code>~/Library/Rime/</code> and rename <code>squirrel.custom.yaml</code> to just <code>squirrel.custom.yaml</code> (or merge with existing).</li>
+          <li><strong>Windows (Weasel)</strong>: Copy files to <code>%APPDATA%\Rime\</code> and rename <code>weasel.custom.yaml</code> to <code>weasel.custom.yaml</code>.</li>
+          <li><strong>Linux (ibus-rime)</strong>: Copy files to <code>~/.config/ibus/rime/</code>.</li>
+        </ul>
+      </div>
+
+      <div class="guide-step">
+        <strong>4. Register and Deploy Schema:</strong><br>
+        Open the <code>default.custom.yaml</code> file in your RIME directory (create it if it does not exist) and register the schema under <code>schema_list</code>:
+        <pre>patch:
+  schema_list:
+    - schema: blissymbols</pre>
+        Then, click <strong>Deploy</strong> from the RIME tray menu. You can now toggle to the Blissymbolics input method globally and type using the QWERTY keys or by typing English/Swedish gloss words (e.g. typing "heart" to select the Blissymbol heart).
+      </div>
+    </div>
+  </div>
+
   <script>
     let allRecords = [];
     const grid = document.getElementById('grid');
@@ -555,22 +761,41 @@
     // Tab switching
     const tabDirBtn = document.getElementById('tab-dir-btn');
     const tabKbdBtn = document.getElementById('tab-kbd-btn');
+    const tabDlBtn = document.getElementById('tab-dl-btn');
+    
     const tabDir = document.getElementById('tab-dir');
     const tabKbd = document.getElementById('tab-kbd');
+    const tabDl = document.getElementById('tab-dl');
 
     tabDirBtn.addEventListener('click', () => {
       tabDirBtn.classList.add('active');
       tabKbdBtn.classList.remove('active');
+      tabDlBtn.classList.remove('active');
+      
       tabDir.classList.add('active');
       tabKbd.classList.remove('active');
+      tabDl.classList.remove('active');
     });
 
     tabKbdBtn.addEventListener('click', () => {
       tabKbdBtn.classList.add('active');
       tabDirBtn.classList.remove('active');
+      tabDlBtn.classList.remove('active');
+      
       tabKbd.classList.add('active');
       tabDir.classList.remove('active');
+      tabDl.classList.remove('active');
       renderKeyboard();
+    });
+
+    tabDlBtn.addEventListener('click', () => {
+      tabDlBtn.classList.add('active');
+      tabDirBtn.classList.remove('active');
+      tabKbdBtn.classList.remove('active');
+      
+      tabDl.classList.add('active');
+      tabDir.classList.remove('active');
+      tabKbd.classList.remove('active');
     });
 
     // Check if Font loaded successfully
