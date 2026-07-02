@@ -9,6 +9,12 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.boundsPen import BoundsPen
 from fontTools.svgLib.path import parse_path
 from fontTools.feaLib.builder import Builder
+from fontTools.pens.recordingPen import RecordingPen
+
+import shapely
+from shapely.geometry import LineString, Polygon
+from shapely.ops import unary_union
+from shapely.geometry.polygon import orient
 
 DB_PATH = os.path.join("data", "processed", "bliss_vocabulary.db")
 JSON_PATH = os.path.join("data", "processed", "bliss_character_data.json")
@@ -16,6 +22,105 @@ JSON_PATH = os.path.join("data", "processed", "bliss_character_data.json")
 OUTPUT_OTF = os.path.join("data", "processed", "BlissFont-Regular.otf")
 OUTPUT_WOFF2 = os.path.join("data", "processed", "BlissFont-Regular.woff2")
 FEA_PATH = os.path.join("data", "processed", "features.fea")
+
+def evaluate_cubic_bezier(p0, p1, p2, p3, num_steps=12):
+    points = []
+    for step in range(1, num_steps + 1):
+        t = step / float(num_steps)
+        mt = 1.0 - t
+        x = mt**3 * p0[0] + 3 * mt**2 * t * p1[0] + 3 * mt * t**2 * p2[0] + t**3 * p3[0]
+        y = mt**3 * p0[1] + 3 * mt**2 * t * p1[1] + 3 * mt * t**2 * p2[1] + t**3 * p3[1]
+        points.append((x, y))
+    return points
+
+def evaluate_quadratic_bezier(p0, p1, p2, num_steps=10):
+    points = []
+    for step in range(1, num_steps + 1):
+        t = step / float(num_steps)
+        mt = 1.0 - t
+        x = mt**2 * p0[0] + 2 * mt * t * p1[0] + t**2 * p2[0]
+        y = mt**2 * p0[1] + 2 * mt * t * p1[1] + t**2 * p2[1]
+        points.append((x, y))
+    return points
+
+def recording_to_shapely_lines(recording):
+    lines = []
+    current_subpath = []
+    cursor = (0, 0)
+    
+    for cmd, args in recording:
+        if cmd == 'moveTo':
+            if len(current_subpath) > 1:
+                lines.append(LineString(current_subpath))
+            cursor = args[0]
+            current_subpath = [cursor]
+        elif cmd == 'lineTo':
+            cursor = args[0]
+            current_subpath.append(cursor)
+        elif cmd == 'curveTo':
+            p1, p2, p3 = args
+            pts = evaluate_cubic_bezier(cursor, p1, p2, p3)
+            current_subpath.extend(pts)
+            cursor = p3
+        elif cmd == 'qCurveTo':
+            # Chained quadratic curve
+            pts = args[0]
+            if len(pts) >= 2:
+                prev = cursor
+                for pt_idx in range(len(pts) - 1):
+                    p1 = pts[pt_idx]
+                    p2 = pts[pt_idx+1]
+                    pts_eval = evaluate_quadratic_bezier(prev, p1, p2)
+                    current_subpath.extend(pts_eval)
+                    prev = p2
+                cursor = pts[-1]
+            elif len(pts) == 1:
+                cursor = pts[0]
+                current_subpath.append(cursor)
+        elif cmd == 'closePath':
+            if len(current_subpath) > 1:
+                if current_subpath[-1] != current_subpath[0]:
+                    current_subpath.append(current_subpath[0])
+                lines.append(LineString(current_subpath))
+            current_subpath = []
+            
+    if len(current_subpath) > 1:
+        lines.append(LineString(current_subpath))
+        
+    return lines
+
+def draw_polygon_to_pen(poly, pen):
+    # Ensure correct winding direction: exterior CCW (fills), interiors CW (holes)
+    oriented = orient(poly, sign=1.0)
+    
+    # Exterior
+    coords = list(oriented.exterior.coords)
+    if len(coords) > 0:
+        pen.moveTo(coords[0])
+        for pt in coords[1:-1]:
+            pen.lineTo(pt)
+        pen.closePath()
+        
+    # Interiors (Holes)
+    for interior in oriented.interiors:
+        icoords = list(interior.coords)
+        if len(icoords) > 0:
+            pen.moveTo(icoords[0])
+            for pt in icoords[1:-1]:
+                pen.lineTo(pt)
+            pen.closePath()
+
+def draw_geometry_to_pen(geom, pen):
+    if geom.is_empty:
+        return
+    if geom.geom_type == 'Polygon':
+        draw_polygon_to_pen(geom, pen)
+    elif geom.geom_type == 'MultiPolygon':
+        for poly in geom.geoms:
+            draw_polygon_to_pen(poly, pen)
+    elif geom.geom_type == 'GeometryCollection':
+        for child in geom.geoms:
+            draw_geometry_to_pen(child, pen)
 
 def main():
     if not os.path.exists(JSON_PATH):
@@ -86,7 +191,7 @@ def main():
     indicators = []
     base_glyphs = []
     
-    print("Compiling glyph contours...")
+    print("Compiling glyph contours with stroke-to-outline expansion...")
     # 2. Iterate and build CFF charstrings
     for idx, r in enumerate(records):
         bci_id = r["bci_id"]
@@ -110,16 +215,43 @@ def main():
         vb_h = 324.0 # default SVG height
         scale = upm / vb_h
         
-        advance_width = int(vb_w * scale)
-        pen = T2CharStringPen(advance_width, glyphSet=None)
-        tpen = TransformPen(pen, (scale, 0, 0, -scale, 0, upm))
+        # Stroke parameters (stroke-width=7 scaled into font coordinates)
+        stroke_width = 7.0 * scale
+        radius = stroke_width / 2.0
         
-        # Parse SVG paths and draw onto pen
+        # Setup temporary recording pen in font coordinates
+        rec_pen = RecordingPen()
+        tpen = TransformPen(rec_pen, (scale, 0, 0, -scale, 0, upm))
+        
+        # Parse SVG paths and record them
         for path_def in r["geometry"]["stroke_paths"]:
             try:
                 parse_path(path_def, tpen)
             except Exception as e:
                 pass # skip invalid path segments
+        
+        # Convert path commands to Shapely LineStrings
+        lines = recording_to_shapely_lines(rec_pen.value)
+        
+        # Expand each LineString into a Polygon outline
+        polygons = []
+        for line in lines:
+            try:
+                poly = line.buffer(radius, cap_style='round', join_style='round')
+                polygons.append(poly)
+            except Exception:
+                pass
+                
+        # Union all overlapping stroke polygons
+        if polygons:
+            union_geom = unary_union(polygons)
+        else:
+            union_geom = shapely.geometry.Polygon()
+            
+        # Draw unioned geometry onto the Type 2 CharString Pen
+        advance_width = int(vb_w * scale)
+        pen = T2CharStringPen(advance_width, glyphSet=None)
+        draw_geometry_to_pen(union_geom, pen)
                 
         cff_glyphs[glyph_name] = pen.getCharString()
         metrics[glyph_name] = (advance_width, 0)
