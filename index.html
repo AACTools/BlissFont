@@ -42,7 +42,32 @@
       font-style: normal;
     }
 
+    @font-face {
+      font-family: 'BlissaryFont';
+      src: url('data/processed/BlissaryFont-Regular.woff2?v=3') format('woff2'),
+           url('data/processed/BlissaryFont-Regular.otf?v=3') format('opentype');
+      font-weight: 400;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: 'BlissaryFont';
+      src: url('data/processed/BlissaryFont-SemiBold.woff2?v=3') format('woff2'),
+           url('data/processed/BlissaryFont-SemiBold.otf?v=3') format('opentype');
+      font-weight: 600;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: 'BlissaryFont';
+      src: url('data/processed/BlissaryFont-Bold.woff2?v=3') format('woff2'),
+           url('data/processed/BlissaryFont-Bold.otf?v=3') format('opentype');
+      font-weight: 700;
+      font-style: normal;
+    }
+
     .font-render, .sandbox-output, .key-radical, .legend-glyph {
+      font-family: var(--font-family-selection, 'BlissFont'), sans-serif;
       font-weight: var(--font-weight, 400);
     }
 
@@ -616,7 +641,14 @@
           <select id="category-filter">
             <option value="all">All Categories</option>
           </select>
+        </div>        <div class="sidebar-section">
+          <h3>Font Family</h3>
+          <select id="family-select">
+            <option value="BlissFont">BCI Unicode Bliss (Standard)</option>
+            <option value="BlissaryFont">Blissary (Smooth Outlines)</option>
+          </select>
         </div>
+
         <div class="sidebar-section">
           <h3>Font Weight</h3>
           <select id="weight-select">
@@ -683,6 +715,7 @@
         <h3>Font Binaries</h3>
         <p>Download the fully-compiled Blissymbolics OpenType outline font files containing dynamic diacritics positioning and contextual alternate rules.</p>
         <div class="dl-list">
+          <div style="font-size: 13px; font-weight: 600; color: #fff; margin-top: 5px; margin-bottom: 2px;">BCI Unicode Bliss (Standard)</div>
           <div class="dl-item">
             <span class="dl-item-label">BlissFont-Regular</span>
             <div>
@@ -705,6 +738,32 @@
               <a class="dl-link" href="data/processed/BlissFont-Bold.otf" download>OTF</a>
               <span style="color: var(--border-color); margin: 0 5px;">|</span>
               <a class="dl-link" href="data/processed/BlissFont-Bold.woff2" download>WOFF2</a>
+            </div>
+          </div>
+          
+          <div style="font-size: 13px; font-weight: 600; color: #fff; margin-top: 15px; margin-bottom: 2px;">Blissary (Smooth Outlines)</div>
+          <div class="dl-item">
+            <span class="dl-item-label">BlissaryFont-Regular</span>
+            <div>
+              <a class="dl-link" href="data/processed/BlissaryFont-Regular.otf" download>OTF</a>
+              <span style="color: var(--border-color); margin: 0 5px;">|</span>
+              <a class="dl-link" href="data/processed/BlissaryFont-Regular.woff2" download>WOFF2</a>
+            </div>
+          </div>
+          <div class="dl-item">
+            <span class="dl-item-label">BlissaryFont-SemiBold</span>
+            <div>
+              <a class="dl-link" href="data/processed/BlissaryFont-SemiBold.otf" download>OTF</a>
+              <span style="color: var(--border-color); margin: 0 5px;">|</span>
+              <a class="dl-link" href="data/processed/BlissaryFont-SemiBold.woff2" download>WOFF2</a>
+            </div>
+          </div>
+          <div class="dl-item">
+            <span class="dl-item-label">BlissaryFont-Bold</span>
+            <div>
+              <a class="dl-link" href="data/processed/BlissaryFont-Bold.otf" download>OTF</a>
+              <span style="color: var(--border-color); margin: 0 5px;">|</span>
+              <a class="dl-link" href="data/processed/BlissaryFont-Bold.woff2" download>WOFF2</a>
             </div>
           </div>
         </div>
@@ -1135,6 +1194,11 @@
     const weightSelect = document.getElementById('weight-select');
     weightSelect.addEventListener('change', () => {
       document.documentElement.style.setProperty('--font-weight', weightSelect.value);
+    });
+
+    const familySelect = document.getElementById('family-select');
+    familySelect.addEventListener('change', () => {
+      document.documentElement.style.setProperty('--font-family-selection', familySelect.value);
     });
   </script>
 </body>

@@ -59,7 +59,10 @@ def recording_to_shapely_lines(recording):
             current_subpath.extend(pts)
             cursor = p3
         elif cmd == 'qCurveTo':
-            pts = args[0]
+            if isinstance(args[0][0], (list, tuple)):
+                pts = args[0]
+            else:
+                pts = args
             if len(pts) >= 2:
                 prev = cursor
                 for pt_idx in range(len(pts) - 1):
