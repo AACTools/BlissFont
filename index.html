@@ -201,6 +201,15 @@
       min-height: 120px;
     }
 
+    #inspector-glyph-render {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      z-index: 5;
+    }
+
     .stats {
       font-size: 13px;
       color: var(--text-muted);
@@ -883,22 +892,24 @@
       <!-- Main Inspect Area -->
       <div style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
         <div class="inspector-viewport-container">
-          <!-- Guide lines -->
-          <div class="grid-overlay-line line-skyline visible">
-            <span class="grid-line-label label-skyline">Skyline (667)</span>
+          <div class="inspector-viewport">
+            <!-- Large Glyph Render -->
+            <div id="inspector-glyph-render">-</div>
+
+            <!-- Guide lines (nested inside to align perfectly to the 250px container) -->
+            <div class="grid-overlay-line line-skyline visible">
+              <span class="grid-line-label label-skyline">Skyline (444)</span>
+            </div>
+            <div class="grid-overlay-line line-meanline visible">
+              <span class="grid-line-label label-meanline">Meanline (222)</span>
+            </div>
+            <div class="grid-overlay-line line-earthline visible">
+              <span class="grid-line-label label-earthline">Earthline / Baseline (0)</span>
+            </div>
+            <div class="grid-overlay-line line-underline visible">
+              <span class="grid-line-label label-underline">Underline (-111)</span>
+            </div>
           </div>
-          <div class="grid-overlay-line line-meanline visible">
-            <span class="grid-line-label label-meanline">Meanline (444)</span>
-          </div>
-          <div class="grid-overlay-line line-earthline visible">
-            <span class="grid-line-label label-earthline">Earthline / Baseline (222)</span>
-          </div>
-          <div class="grid-overlay-line line-underline visible">
-            <span class="grid-line-label label-underline">Underline (111)</span>
-          </div>
-          
-          <!-- Large Glyph Render -->
-          <div class="inspector-viewport" id="inspector-glyph-render">-</div>
         </div>
 
         <!-- Raw SVG comparison panel -->
