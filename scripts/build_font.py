@@ -89,26 +89,37 @@ def recording_to_shapely_lines(recording):
         
     return lines
 
+def clean_coords(coords):
+    cleaned = []
+    for x, y in coords:
+        rx, ry = int(round(x)), int(round(y))
+        if not cleaned or (rx, ry) != cleaned[-1]:
+            cleaned.append((rx, ry))
+    # Closed loop requires at least 4 coordinates (V1, V2, V3, V1)
+    if len(cleaned) >= 4:
+        return cleaned
+    return []
+
 def draw_polygon_to_pen(poly, pen):
     # Ensure correct winding direction: exterior CCW (fills), interiors CW (holes)
     oriented = orient(poly, sign=1.0)
     
     # Exterior
-    coords = list(oriented.exterior.coords)
-    if len(coords) > 0:
-        pen.moveTo(coords[0])
-        for pt in coords[1:-1]:
+    ext_coords = clean_coords(oriented.exterior.coords)
+    if len(ext_coords) >= 4:
+        pen.moveTo(ext_coords[0])
+        for pt in ext_coords[1:-1]:
             pen.lineTo(pt)
         pen.closePath()
         
-    # Interiors (Holes)
-    for interior in oriented.interiors:
-        icoords = list(interior.coords)
-        if len(icoords) > 0:
-            pen.moveTo(icoords[0])
-            for pt in icoords[1:-1]:
-                pen.lineTo(pt)
-            pen.closePath()
+        # Draw interiors (Holes)
+        for interior in oriented.interiors:
+            int_coords = clean_coords(interior.coords)
+            if len(int_coords) >= 4:
+                pen.moveTo(int_coords[0])
+                for pt in int_coords[1:-1]:
+                    pen.lineTo(pt)
+                pen.closePath()
 
 def draw_geometry_to_pen(geom, pen):
     if geom.is_empty:
