@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Blissymbolics Character Map & Font Viewer</title>
+  <title>Blissymbolics Interactive Workspace</title>
   <style>
     :root {
       --bg-color: #0d1117;
@@ -42,7 +42,7 @@
     }
 
     header {
-      margin-bottom: 30px;
+      margin-bottom: 25px;
       padding-bottom: 20px;
       border-bottom: 1px solid var(--border-color);
       display: flex;
@@ -63,6 +63,43 @@
       font-size: 14px;
       color: var(--text-muted);
       margin-top: 5px;
+    }
+
+    /* Tabs navigation */
+    .tab-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      background: #21262d;
+      border: 1px solid var(--border-color);
+      color: var(--text-color);
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .tab-btn:hover {
+      background: #30363d;
+    }
+
+    .tab-btn.active {
+      background: var(--primary-glow);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
     }
 
     .main-layout {
@@ -284,14 +321,125 @@
       color: #ff7b72;
       margin-bottom: 20px;
     }
+
+    /* Virtual Keyboard styling */
+    .keyboard-container {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 30px 20px;
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .keyboard-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      width: 100%;
+    }
+
+    .key {
+      background: #161b22;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      width: 60px;
+      height: 65px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 6px;
+      cursor: pointer;
+      position: relative;
+      transition: border-color 0.2s, background 0.2s, transform 0.1s;
+      user-select: none;
+    }
+
+    .key:hover {
+      background: #21262d;
+      border-color: var(--primary-color);
+    }
+
+    .key:active {
+      transform: scale(0.95);
+    }
+
+    .key.active-radical {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 8px var(--primary-glow);
+    }
+
+    .key-cap {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .key-radical {
+      font-family: 'BlissFont', sans-serif;
+      font-size: 28px;
+      color: #fff;
+      text-align: center;
+      align-self: center;
+      margin-top: -5px;
+    }
+
+    .key.space-bar {
+      width: 320px;
+      height: 50px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .key.space-bar .key-cap {
+      font-size: 14px;
+    }
+
+    .legend-panel {
+      background: #161b22;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 15px;
+      width: 100%;
+      max-width: 650px;
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      min-height: 100px;
+    }
+
+    .legend-glyph {
+      font-family: 'BlissFont', sans-serif;
+      font-size: 64px;
+      color: var(--primary-color);
+      width: 80px;
+      text-align: center;
+    }
+
+    .legend-details {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .legend-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
 
   <header>
     <div>
-      <h1>Blissymbolics Character Map & Font Viewer</h1>
-      <div class="subtitle">Side-by-side comparison of compiled OpenType font glyphs vs raw SVG vectors</div>
+      <h1>Blissymbolics Interactive Workspace</h1>
+      <div class="subtitle">Complete developer testing sandbox, character map, and virtual keyboard</div>
     </div>
     <div style="font-size: 13px; color: var(--text-muted);">
       Status: <span id="font-status" style="color: var(--success-color); font-weight: bold;">Loading Font...</span>
@@ -300,55 +448,93 @@
 
   <div id="error-container"></div>
 
-  <div class="main-layout">
-    <div class="sidebar">
-      <div class="sidebar-section">
-        <h3>Search</h3>
-        <input type="text" id="search-input" placeholder="Type gloss name (e.g. heart)...">
+  <!-- Shared Sandbox Panel -->
+  <div class="sandbox-panel">
+    <div class="sandbox-label">Interactive Typing Sandbox (Type or select symbols below)</div>
+    <textarea id="sandbox-input" placeholder="Type here, click keyboard keys, or copy cards..."></textarea>
+    
+    <div class="sandbox-label" style="margin-top: 15px;">GPOS Diacritic Anchor Test (Attachment of combining marks)</div>
+    <div class="gpos-testbench">
+      <select id="base-select" style="max-width: 250px;">
+        <option value="">Select Base Glyph...</option>
+      </select>
+      <select id="mark-select" style="max-width: 250px;">
+        <option value="">Select Combining Mark...</option>
+      </select>
+      <button class="copy-btn" id="gpos-combine-btn" style="margin-top: 0;">Preview Combined</button>
+    </div>
+    
+    <div class="sandbox-output" id="sandbox-display">Preview Area</div>
+  </div>
+
+  <!-- Tabs Navigation -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-dir-btn">Browse Symbols Directory</button>
+    <button class="tab-btn" id="tab-kbd-btn">Keyboard Layout Guide</button>
+  </div>
+
+  <!-- TAB 1: Directory -->
+  <div class="tab-content active" id="tab-dir">
+    <div class="main-layout">
+      <div class="sidebar">
+        <div class="sidebar-section">
+          <h3>Search</h3>
+          <input type="text" id="search-input" placeholder="Type gloss name (e.g. heart)...">
+        </div>
+
+        <div class="sidebar-section">
+          <h3>Category</h3>
+          <select id="category-filter">
+            <option value="all">All Categories</option>
+          </select>
+        </div>
+
+        <div class="sidebar-section">
+          <h3>Sort By</h3>
+          <select id="sort-select">
+            <option value="weight">Collation Weight</option>
+            <option value="id">BCI-AV ID</option>
+          </select>
+        </div>
+
+        <div class="sidebar-section">
+          <h3>Stats</h3>
+          <div class="stats" id="stats-count">Loading records...</div>
+        </div>
       </div>
 
-      <div class="sidebar-section">
-        <h3>Category</h3>
-        <select id="category-filter">
-          <option value="all">All Categories</option>
-        </select>
-      </div>
-
-      <div class="sidebar-section">
-        <h3>Sort By</h3>
-        <select id="sort-select">
-          <option value="weight">Collation Weight</option>
-          <option value="id">BCI-AV ID</option>
-        </select>
-      </div>
-
-      <div class="sidebar-section">
-        <h3>Stats</h3>
-        <div class="stats" id="stats-count">Loading records...</div>
+      <div>
+        <div class="loader" id="loader">Loading Blissymbol data records...</div>
+        <div class="grid-container" id="grid"></div>
       </div>
     </div>
+  </div>
 
-    <div>
-      <div class="sandbox-panel">
-        <div class="sandbox-label">Interactive Typing Sandbox (Type or select a symbol below to preview)</div>
-        <textarea id="sandbox-input" placeholder="Type or copy characters here to view them in BlissFont..."></textarea>
-        
-        <div class="sandbox-label" style="margin-top: 15px;">GPOS Anchor Test (Attachment of combining marks)</div>
-        <div class="gpos-testbench">
-          <select id="base-select" style="max-width: 250px;">
-            <option value="">Select Base Glyph...</option>
-          </select>
-          <select id="mark-select" style="max-width: 250px;">
-            <option value="">Select Combining Mark...</option>
-          </select>
-          <button class="copy-btn" id="gpos-combine-btn" style="margin-top: 0;">Preview Combined</button>
+  <!-- TAB 2: Keyboard Guide -->
+  <div class="tab-content" id="tab-kbd">
+    <div class="keyboard-container">
+      <div class="sandbox-label" style="text-align: center; margin-bottom: 10px;">Interactive QWERTY-to-Radical Cheat Sheet (Click keys to type)</div>
+      
+      <!-- Virtual Keyboard Layout -->
+      <div id="virtual-keyboard" style="display: flex; flex-direction: column; gap: 8px; width: 100%;">
+        <!-- Will be dynamically populated by JS -->
+      </div>
+      
+      <!-- Space Bar -->
+      <div class="keyboard-row" style="margin-top: 5px;">
+        <div class="key space-bar" onclick="appendSpace()">
+          <span class="key-cap">Space</span>
         </div>
-        
-        <div class="sandbox-output" id="sandbox-display">Preview Area</div>
       </div>
 
-      <div class="loader" id="loader">Loading Blissymbol data records...</div>
-      <div class="grid-container" id="grid"></div>
+      <!-- Legend Panel -->
+      <div class="legend-panel">
+        <div class="legend-glyph" id="legend-char">-</div>
+        <div class="legend-details">
+          <div class="legend-title" id="legend-title">Hover or click a key</div>
+          <div style="font-size: 13px; color: var(--text-muted);" id="legend-info">Hover over any highlighted key to see its radical definition.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -366,6 +552,27 @@
     const baseSelect = document.getElementById('base-select');
     const markSelect = document.getElementById('mark-select');
     
+    // Tab switching
+    const tabDirBtn = document.getElementById('tab-dir-btn');
+    const tabKbdBtn = document.getElementById('tab-kbd-btn');
+    const tabDir = document.getElementById('tab-dir');
+    const tabKbd = document.getElementById('tab-kbd');
+
+    tabDirBtn.addEventListener('click', () => {
+      tabDirBtn.classList.add('active');
+      tabKbdBtn.classList.remove('active');
+      tabDir.classList.add('active');
+      tabKbd.classList.remove('active');
+    });
+
+    tabKbdBtn.addEventListener('click', () => {
+      tabKbdBtn.classList.add('active');
+      tabDirBtn.classList.remove('active');
+      tabKbd.classList.add('active');
+      tabDir.classList.remove('active');
+      renderKeyboard();
+    });
+
     // Check if Font loaded successfully
     document.fonts.ready.then(() => {
       document.getElementById('font-status').textContent = 'Font Active';
@@ -373,6 +580,42 @@
       document.getElementById('font-status').textContent = 'Error Loading Font';
       document.getElementById('font-status').style.color = '#ff7b72';
     });
+
+    // QWERTY mapping
+    const keyboardLayout = [
+      ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+      ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+      ['z', 'x', 'c', 'v', 'b', 'n', 'm']
+    ];
+
+    const keyboardMap = {
+      'q': { bci: '13867', label: 'dot / period' },
+      'w': { bci: '13901', label: 'earth / ground' },
+      'e': { bci: '13894', label: 'ear' },
+      'r': { bci: '16420', label: 'protection / shelter' },
+      't': { bci: '9011', label: 'plural indicator' },
+      'y': { bci: '8496', label: 'zero (0)' },
+      'u': { bci: '14166', label: 'female gender' },
+      'i': { bci: '14165', label: 'male gender' },
+      'o': { bci: '17493', label: 'table' },
+      'p': { bci: '15663', label: 'mountain' },
+      'a': { bci: '14183', label: 'fire' },
+      's': { bci: '16161', label: 'person' },
+      'd': { bci: '14905', label: 'house / building' },
+      'f': { bci: '14390', label: 'forward / future' },
+      'g': { bci: '18232', label: 'wheel' },
+      'h': { bci: '13382', label: 'combine marker' },
+      'j': { bci: '13403', label: 'container / holder' },
+      'k': { bci: '9004', label: 'past action' },
+      'l': { bci: '17717', label: 'thing / object' },
+      'z': { bci: '8521', label: 'letter a' },
+      'x': { bci: '8522', label: 'letter b' },
+      'c': { bci: '13365', label: 'cloth / fabric' },
+      'v': { bci: '8993', label: 'action indicator' },
+      'b': { bci: '14164', label: 'feeling / emotion' },
+      'n': { bci: '15923', label: 'opening / door' },
+      'm': { bci: '15471', label: 'mind / intellect' },
+    };
 
     // Fetch symbol JSON
     fetch('data/processed/bliss_character_data.json')
@@ -384,7 +627,6 @@
         allRecords = data;
         loader.style.display = 'none';
         
-        // Populate filters and structures
         populateFilters();
         renderGrid();
         setupSandbox();
@@ -415,7 +657,6 @@
         categoryFilter.appendChild(opt);
       });
 
-      // Populate base glyphs and marks for GPOS test bench
       allRecords.forEach((r, idx) => {
         const cp = String.fromCharCode(0xE000 + idx);
         const name = r.glosses.en || r.bci_id;
@@ -440,8 +681,6 @@
       const sortBy = sortSelect.value;
       
       let filtered = allRecords.filter((r, idx) => {
-        const char_pua = String.fromCharCode(0xE000 + idx);
-        
         const glossMatch = (r.glosses.en && r.glosses.en.toLowerCase().includes(search)) || 
                            (r.glosses.sv && r.glosses.sv.toLowerCase().includes(search)) ||
                            r.bci_id.toString().includes(search);
@@ -466,7 +705,6 @@
       const limit = Math.min(records.length, 120);
       for (let i = 0; i < limit; i++) {
         const r = records[i];
-        
         const origIdx = allRecords.findIndex(x => x.bci_id === r.bci_id);
         const cp_pua = 0xE000 + origIdx;
         const char_pua = String.fromCharCode(cp_pua);
@@ -529,32 +767,96 @@
     }
 
     function setupSandbox() {
-      sandboxInput.addEventListener('input', () => {
-        const val = sandboxInput.value;
-        if (!val) {
-          sandboxDisplay.textContent = 'Preview Area';
-        } else {
-          sandboxDisplay.textContent = val;
-        }
-      });
+      sandboxInput.addEventListener('input', updateSandboxDisplay);
 
       document.getElementById('gpos-combine-btn').addEventListener('click', () => {
         const base = baseSelect.value;
         const mark = markSelect.value;
         if (base && mark) {
-          const combined = base + mark;
-          sandboxDisplay.textContent = combined;
-          sandboxInput.value += combined;
+          sandboxInput.value += (base + mark);
+          updateSandboxDisplay();
         }
       });
     }
 
+    function updateSandboxDisplay() {
+      const val = sandboxInput.value;
+      if (!val) {
+        sandboxDisplay.textContent = 'Preview Area';
+      } else {
+        sandboxDisplay.textContent = val;
+      }
+    }
+
     function copyChar(c) {
       navigator.clipboard.writeText(c).then(() => {
-        const prevInput = sandboxInput.value;
-        sandboxInput.value = prevInput + c;
-        sandboxDisplay.textContent = sandboxInput.value;
+        sandboxInput.value += c;
+        updateSandboxDisplay();
       });
+    }
+
+    function appendSpace() {
+      sandboxInput.value += ' ';
+      updateSandboxDisplay();
+    }
+
+    // Keyboard renderer
+    function renderKeyboard() {
+      const kbd = document.getElementById('virtual-keyboard');
+      kbd.innerHTML = '';
+
+      keyboardLayout.forEach(row => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'keyboard-row';
+        
+        row.forEach(letter => {
+          const keyDiv = document.createElement('div');
+          keyDiv.className = 'key';
+          
+          const mapping = keyboardMap[letter];
+          let char = '';
+          let bci = '';
+          
+          if (mapping) {
+            bci = mapping.bci;
+            const rank = allRecords.findIndex(r => r.bci_id === bci);
+            if (rank !== -1) {
+              char = String.fromCharCode(0xE000 + rank);
+              keyDiv.classList.add('active-radical');
+              
+              // Click handler
+              keyDiv.onclick = () => {
+                sandboxInput.value += char;
+                updateSandboxDisplay();
+                updateLegend(char, mapping.label, bci, allRecords[rank].category);
+              };
+              
+              // Hover handlers
+              keyDiv.onmouseenter = () => {
+                updateLegend(char, mapping.label, bci, allRecords[rank].category);
+              };
+            }
+          }
+          
+          keyDiv.innerHTML = `
+            <span class="key-cap">${letter}</span>
+            <span class="key-radical">${char}</span>
+          `;
+          rowDiv.appendChild(keyDiv);
+        });
+        
+        kbd.appendChild(rowDiv);
+      });
+    }
+
+    function updateLegend(char, label, bci, category) {
+      document.getElementById('legend-char').textContent = char;
+      document.getElementById('legend-title').textContent = label.toUpperCase();
+      document.getElementById('legend-info').innerHTML = `
+        <strong>BCI ID:</strong> ${bci} &nbsp;|&nbsp; 
+        <strong>Category:</strong> ${category} &nbsp;|&nbsp; 
+        <strong>PUA Code:</strong> U+${char.charCodeAt(0).toString(16).toUpperCase()}
+      `;
     }
 
     // Event Listeners

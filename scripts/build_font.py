@@ -31,8 +31,11 @@ def main():
     upm = 1000
     fb = FontBuilder(upm, isTTF=False)
     
-    glyph_order = [".notdef", "space"]
-    cmap = {}
+    glyph_order = [".notdef", "space", "bracketleft", "bracketright"]
+    cmap = {
+        0x005B: "bracketleft",  # Standard Left Bracket '['
+        0x005D: "bracketright"  # Standard Right Bracket ']'
+    }
     cff_glyphs = {}
     metrics = {}
     
@@ -51,6 +54,34 @@ def main():
     cff_glyphs["space"] = pen.getCharString()
     metrics["space"] = (500, 0)
     
+    # Define bracketleft
+    pen = T2CharStringPen(300, glyphSet=None)
+    pen.moveTo((200, 850))
+    pen.lineTo((100, 850))
+    pen.lineTo((100, -150))
+    pen.lineTo((200, -150))
+    pen.lineTo((200, -100))
+    pen.lineTo((150, -100))
+    pen.lineTo((150, 800))
+    pen.lineTo((200, 800))
+    pen.closePath()
+    cff_glyphs["bracketleft"] = pen.getCharString()
+    metrics["bracketleft"] = (300, 50)
+
+    # Define bracketright
+    pen = T2CharStringPen(300, glyphSet=None)
+    pen.moveTo((100, 850))
+    pen.lineTo((200, 850))
+    pen.lineTo((200, -150))
+    pen.lineTo((100, -150))
+    pen.lineTo((100, -100))
+    pen.lineTo((150, -100))
+    pen.lineTo((150, 800))
+    pen.lineTo((100, 800))
+    pen.closePath()
+    cff_glyphs["bracketright"] = pen.getCharString()
+    metrics["bracketright"] = (300, 50)
+    
     # Track list of indicators and spacing base glyphs
     indicators = []
     base_glyphs = []
@@ -63,7 +94,6 @@ def main():
         glyph_order.append(glyph_name)
         
         # Codepoint mapping
-        # 1. Standard proposed unicode if available (parse hex string)
         p_uni = r.get("proposed_unicode")
         if p_uni and p_uni.startswith("U+"):
             try:
@@ -72,7 +102,6 @@ def main():
             except ValueError:
                 pass
                 
-        # 2. Secondary PUA mapping for direct web/app utilization
         pua_cp = 0xE000 + idx
         cmap[pua_cp] = glyph_name
         
@@ -122,11 +151,9 @@ def main():
     print("Calculating diacritic anchor coordinates from outline bounds...")
     glyph_set = fb.font.getGlyphSet()
     
-    # Open database to store computed anchors
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # Ensure anchors columns exist in SQLite symbols table
     cursor.execute("PRAGMA table_info(symbols)")
     cols = [col[1] for col in cursor.fetchall()]
     for col in ["anchor_top_x", "anchor_top_y", "anchor_bot_x", "anchor_bot_y"]:
@@ -147,30 +174,34 @@ def main():
             
             if pen.bounds:
                 xMin, yMin, xMax, yMax = pen.bounds
-                # Calculate center top and center bottom anchors
                 cx = (xMin + xMax) / 2.0
                 
-                # Standard offset above/below bounds
-                top_y = yMax + 40
-                bot_y = yMin - 40
+                # Dynamic variable offsets based on height class of glyph
+                glyph_height = yMax - yMin
+                if glyph_height < 300:
+                    offset = 30
+                elif glyph_height < 550:
+                    offset = 45
+                else:
+                    offset = 60
+                
+                top_y = yMax + offset
+                bot_y = yMin - offset
                 
                 anchor_lookup[glyph_name] = {
                     "top": (int(cx), int(top_y)),
                     "bot": (int(cx), int(bot_y))
                 }
                 
-                # Update database
                 cursor.execute("""
                     UPDATE symbols 
                     SET anchor_top_x = ?, anchor_top_y = ?, anchor_bot_x = ?, anchor_bot_y = ? 
                     WHERE bci_id = ?
                 """, (cx, top_y, cx, bot_y, bci_id))
                 
-                # Update JSON record in memory
                 r["anchors"]["top_diacritic"] = {"x": int(cx), "y": int(top_y)}
                 r["anchors"]["bottom_diacritic"] = {"x": int(cx), "y": int(bot_y)}
             else:
-                # Fallback default anchors if blank glyph
                 anchor_lookup[glyph_name] = {
                     "top": (500, 850),
                     "bot": (500, -50)
@@ -179,21 +210,23 @@ def main():
     conn.commit()
     conn.close()
     
-    # Write back updated JSON
     with open(JSON_PATH, 'w', encoding='utf-8') as f:
         json.dump(records, f, indent=2, ensure_ascii=False)
-    print("Updated database and JSON files with precise GPOS coordinates.")
+    print("Updated database and JSON files with variable GPOS coordinates.")
     
     # 4. Generate OpenType features FEA file
     print("Generating features.fea file...")
     fea_lines = []
     
+    # Define classes
+    fea_lines.append("# Glyph classes")
+    fea_lines.append(f"@ALL_SYMBOLS = [{' '.join(base_glyphs)}];")
+    
     # Define indicators mark class
-    fea_lines.append("# Mark definitions")
+    fea_lines.append("\n# Mark definitions")
     if indicators:
         fea_lines.append(f"markClass [{' '.join(indicators)}] <anchor 0 0> @INDICATORS;")
     else:
-        # Fallback if no indicators classified
         fea_lines.append("markClass [space] <anchor 0 0> @INDICATORS;")
         
     fea_lines.append("\n# GPOS Anchors")
@@ -208,8 +241,23 @@ def main():
     fea_lines.append("    } mark2base;")
     fea_lines.append("} mark;")
     
+    # Contextual Alternate Bracket Substitution for Combine Markers
+    fea_lines.append("\n# Contextual Substitutions for Combine Markers")
+    fea_lines.append("feature calt {")
+    fea_lines.append("    # Substitute first combine_marker with left bracket")
+    fea_lines.append("    sub glyph_13382' @ALL_SYMBOLS glyph_13382 by bracketleft;")
+    fea_lines.append("    sub glyph_13382' @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382 by bracketleft;")
+    fea_lines.append("    sub glyph_13382' @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382 by bracketleft;")
+    fea_lines.append("    sub glyph_13382' @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382 by bracketleft;")
+    
+    # Substitute second combine_marker with right bracket
+    fea_lines.append("    sub bracketleft @ALL_SYMBOLS glyph_13382' by bracketright;")
+    fea_lines.append("    sub bracketleft @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382' by bracketright;")
+    fea_lines.append("    sub bracketleft @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382' by bracketright;")
+    fea_lines.append("    sub bracketleft @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382' by bracketright;")
+    fea_lines.append("} calt;")
+    
     # Add RTL Mirroring GSUB feature
-    # We will identify directional pairs:
     fea_lines.append("\n# GSUB Mirroring for RTL Layouts")
     fea_lines.append("feature rtla {")
     fea_lines.append("    sub glyph_13902 by glyph_18224; # east -> west")
@@ -237,7 +285,6 @@ def main():
     print(f"OTF Font compiled successfully at: {OUTPUT_OTF}")
     
     # Save WOFF2
-    # Reload and compress
     font = TTFont(OUTPUT_OTF)
     font.flavor = "woff2"
     font.save(OUTPUT_WOFF2)
