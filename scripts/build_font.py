@@ -213,7 +213,7 @@ def compile_weight(weight_name, stroke_val, weight_class, records):
         radius = stroke_width / 2.0
         
         rec_pen = RecordingPen()
-        tpen = TransformPen(rec_pen, (scale, 0, 0, -scale, 0, upm))
+        tpen = TransformPen(rec_pen, (scale, 0, 0, -scale, 0, 252.0 * scale))
         
         for path_def in r["geometry"]["stroke_paths"]:
             try:

@@ -234,7 +234,7 @@ def compile_blissary_weight(weight_name, stroke_val, weight_class, records):
             
             # Left padding is 50 units.
             # a=scale, b=0, c=0, d=-scale, dx=50 - scale*xMin, dy=222.22 + 16.0*scale
-            tpen = TransformPen(rec_pen, (scale, 0, 0, -scale, 50.0 - scale * xMin, 222.22 + 16.0 * scale))
+            tpen = TransformPen(rec_pen, (scale, 0, 0, -scale, 50.0 - scale * xMin, 16.0 * scale))
             
             for path_def in svg_paths:
                 try:
@@ -252,7 +252,7 @@ def compile_blissary_weight(weight_name, stroke_val, weight_class, records):
             vb_h = 324.0
             scale = upm / vb_h
             
-            tpen = TransformPen(rec_pen, (scale, 0, 0, -scale, 0, upm))
+            tpen = TransformPen(rec_pen, (scale, 0, 0, -scale, 0, 252.0 * scale))
             for path_def in r["geometry"]["stroke_paths"]:
                 try:
                     parse_path(path_def, tpen)
