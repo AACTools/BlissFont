@@ -69,6 +69,8 @@
     .font-render, .sandbox-output, .key-radical, .legend-glyph {
       font-family: var(--font-family-selection, 'BlissFont'), sans-serif;
       font-weight: var(--font-weight, 400);
+      font-feature-settings: "liga" 1, "calt" 1, "mark" 1, "mkmk" 1;
+      text-rendering: optimizeLegibility;
     }
 
     * {
@@ -188,6 +190,15 @@
     input:focus, select:focus, textarea:focus {
       border-color: var(--primary-color);
       box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    #sandbox-input {
+      font-family: var(--font-family-selection, 'BlissFont'), sans-serif;
+      font-size: 36px;
+      font-weight: var(--font-weight, 400);
+      font-feature-settings: "liga" 1, "calt" 1, "mark" 1, "mkmk" 1;
+      text-rendering: optimizeLegibility;
+      min-height: 120px;
     }
 
     .stats {

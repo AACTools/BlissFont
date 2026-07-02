@@ -354,7 +354,20 @@ def compile_blissary_weight(weight_name, stroke_val, weight_class, records):
     
     fea_lines.append("\n# Mark definitions")
     if indicators:
-        fea_lines.append(f"markClass [{' '.join(indicators)}] <anchor 0 0> @INDICATORS;")
+        for ind_name in indicators:
+            if ind_name in glyph_set:
+                glyph = glyph_set[ind_name]
+                pen = BoundsPen(glyph_set)
+                glyph.draw(pen)
+                if pen.bounds:
+                    xMin, yMin, xMax, yMax = pen.bounds
+                    cx = (xMin + xMax) / 2.0
+                    cy = yMin
+                    fea_lines.append(f"markClass {ind_name} <anchor {int(round(cx))} {int(round(cy))}> @INDICATORS;")
+                else:
+                    fea_lines.append(f"markClass {ind_name} <anchor 250 850> @INDICATORS;")
+            else:
+                fea_lines.append(f"markClass {ind_name} <anchor 250 850> @INDICATORS;")
     else:
         fea_lines.append("markClass [space] <anchor 0 0> @INDICATORS;")
         
