@@ -596,6 +596,108 @@
       border: 1px solid var(--border-color);
       overflow-x: auto;
     }
+
+    /* Inspector Layout */
+    .inspector-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .inspector-viewport-container {
+      background: #0d1117;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      min-height: 380px;
+      overflow: hidden;
+      width: 100%;
+    }
+
+    .inspector-viewport {
+      font-family: var(--font-family-selection, 'BlissFont'), sans-serif;
+      font-weight: var(--font-weight, 400);
+      font-feature-settings: "liga" 1, "calt" 1, "mark" 1, "mkmk" 1;
+      text-rendering: optimizeLegibility;
+      font-size: 200px;
+      line-height: 1;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      width: 100%;
+      height: 250px;
+      user-select: none;
+      z-index: 5;
+    }
+
+    /* Grid Overlay */
+    .grid-overlay-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      border-top: 1px dashed rgba(255, 255, 255, 0.15);
+      pointer-events: none;
+      display: none;
+      z-index: 2;
+    }
+
+    .grid-overlay-line.visible {
+      display: block;
+    }
+
+    .grid-line-label {
+      position: absolute;
+      left: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 3px;
+      transform: translateY(-50%);
+    }
+
+    .line-skyline {
+      border-top-color: rgba(255, 123, 114, 0.5);
+      top: 33.3%;
+    }
+    .label-skyline {
+      background: #851e18;
+      color: #ff7b72;
+    }
+
+    .line-meanline {
+      border-top-color: rgba(210, 168, 255, 0.5);
+      top: 55.5%;
+    }
+    .label-meanline {
+      background: #5d2596;
+      color: #d2a8ff;
+    }
+
+    .line-earthline {
+      border-top-color: rgba(63, 185, 80, 0.5);
+      top: 77.7%;
+    }
+    .label-earthline {
+      background: #185221;
+      color: #3fb950;
+    }
+
+    .line-underline {
+      border-top-color: rgba(88, 166, 255, 0.5);
+      top: 88.8%;
+    }
+    .label-underline {
+      background: #143d6b;
+      color: #58a6ff;
+    }
   </style>
 </head>
 <body>
@@ -635,6 +737,7 @@
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-dir-btn">Browse Symbols Directory</button>
     <button class="tab-btn" id="tab-kbd-btn">Keyboard Layout Guide</button>
+    <button class="tab-btn" id="tab-ins-btn">Glyph Inspector</button>
     <button class="tab-btn" id="tab-dl-btn">Download & Install</button>
   </div>
 
@@ -718,7 +821,98 @@
     </div>
   </div>
 
-  <!-- TAB 3: Downloads & Install -->
+  <!-- TAB 3: Glyph Inspector -->
+  <div class="tab-content" id="tab-ins">
+    <div class="inspector-layout">
+      <!-- Controls Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-section">
+          <h3>Select Glyph</h3>
+          <select id="inspector-select">
+            <option value="">Choose a symbol to inspect...</option>
+          </select>
+        </div>
+        
+        <div class="sidebar-section">
+          <h3>Grid Options</h3>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="inspector-grid-toggle" style="width: auto; margin: 0;" checked>
+            Show Bliss Writing Grid
+          </label>
+        </div>
+
+        <div class="sidebar-section" id="inspector-meta-panel" style="display: none;">
+          <h3>Glyph Details</h3>
+          <div class="card-info" style="gap: 8px;">
+            <div class="info-row">
+              <span class="info-label">BCI ID:</span>
+              <span class="info-value" id="ins-val-id">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Gloss (EN):</span>
+              <span class="info-value" id="ins-val-gloss-en">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Gloss (SV):</span>
+              <span class="info-value" id="ins-val-gloss-sv">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Category:</span>
+              <span class="info-value" id="ins-val-cat">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">PUA Code:</span>
+              <span class="info-value" id="ins-val-pua">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Proposed Uni:</span>
+              <span class="info-value" id="ins-val-proposed">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Anchor Top:</span>
+              <span class="info-value" id="ins-val-anchor-top">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Anchor Bottom:</span>
+              <span class="info-value" id="ins-val-anchor-bot">-</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Inspect Area -->
+      <div style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
+        <div class="inspector-viewport-container">
+          <!-- Guide lines -->
+          <div class="grid-overlay-line line-skyline visible">
+            <span class="grid-line-label label-skyline">Skyline (667)</span>
+          </div>
+          <div class="grid-overlay-line line-meanline visible">
+            <span class="grid-line-label label-meanline">Meanline (444)</span>
+          </div>
+          <div class="grid-overlay-line line-earthline visible">
+            <span class="grid-line-label label-earthline">Earthline / Baseline (222)</span>
+          </div>
+          <div class="grid-overlay-line line-underline visible">
+            <span class="grid-line-label label-underline">Underline (111)</span>
+          </div>
+          
+          <!-- Large Glyph Render -->
+          <div class="inspector-viewport" id="inspector-glyph-render">-</div>
+        </div>
+
+        <!-- Raw SVG comparison panel -->
+        <div class="sandbox-panel" id="inspector-svg-panel" style="display: none; margin-bottom: 0;">
+          <div class="sandbox-label">Raw SVG Outline Vector Reference</div>
+          <div style="display: flex; justify-content: center; background: #0d1117; padding: 20px; border-radius: 6px; border: 1px solid var(--border-color); height: 160px; align-items: center;">
+            <div class="svg-render" id="inspector-svg-render" style="width: 120px; height: 120px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: Downloads & Install -->
   <div class="tab-content" id="tab-dl">
     <div class="downloads-layout">
       <!-- Font Files -->
@@ -871,44 +1065,73 @@
     const baseSelect = document.getElementById('base-select');
     const markSelect = document.getElementById('mark-select');
     
+    // Inspector DOM elements
+    const inspectorSelect = document.getElementById('inspector-select');
+    const inspectorGridToggle = document.getElementById('inspector-grid-toggle');
+    const inspectorGlyphRender = document.getElementById('inspector-glyph-render');
+    const inspectorMetaPanel = document.getElementById('inspector-meta-panel');
+    const inspectorSvgPanel = document.getElementById('inspector-svg-panel');
+    const inspectorSvgRender = document.getElementById('inspector-svg-render');
+    
     // Tab switching
     const tabDirBtn = document.getElementById('tab-dir-btn');
     const tabKbdBtn = document.getElementById('tab-kbd-btn');
+    const tabInsBtn = document.getElementById('tab-ins-btn');
     const tabDlBtn = document.getElementById('tab-dl-btn');
     
     const tabDir = document.getElementById('tab-dir');
     const tabKbd = document.getElementById('tab-kbd');
+    const tabIns = document.getElementById('tab-ins');
     const tabDl = document.getElementById('tab-dl');
 
     tabDirBtn.addEventListener('click', () => {
       tabDirBtn.classList.add('active');
       tabKbdBtn.classList.remove('active');
+      tabInsBtn.classList.remove('active');
       tabDlBtn.classList.remove('active');
       
       tabDir.classList.add('active');
       tabKbd.classList.remove('active');
+      tabIns.classList.remove('active');
       tabDl.classList.remove('active');
     });
 
     tabKbdBtn.addEventListener('click', () => {
       tabKbdBtn.classList.add('active');
       tabDirBtn.classList.remove('active');
+      tabInsBtn.classList.remove('active');
       tabDlBtn.classList.remove('active');
       
       tabKbd.classList.add('active');
       tabDir.classList.remove('active');
+      tabIns.classList.remove('active');
       tabDl.classList.remove('active');
       renderKeyboard();
+    });
+
+    tabInsBtn.addEventListener('click', () => {
+      tabInsBtn.classList.add('active');
+      tabDirBtn.classList.remove('active');
+      tabKbdBtn.classList.remove('active');
+      tabDlBtn.classList.remove('active');
+      
+      tabIns.classList.add('active');
+      tabDir.classList.remove('active');
+      tabKbd.classList.remove('active');
+      tabDl.classList.remove('active');
+      initInspector();
     });
 
     tabDlBtn.addEventListener('click', () => {
       tabDlBtn.classList.add('active');
       tabDirBtn.classList.remove('active');
       tabKbdBtn.classList.remove('active');
+      tabInsBtn.classList.remove('active');
       
       tabDl.classList.add('active');
       tabDir.classList.remove('active');
       tabKbd.classList.remove('active');
+      tabIns.classList.remove('active');
     });
 
     // Check if Font loaded successfully
@@ -1195,6 +1418,81 @@
         <strong>Category:</strong> ${category} &nbsp;|&nbsp; 
         <strong>PUA Code:</strong> U+${char.charCodeAt(0).toString(16).toUpperCase()}
       `;
+    }
+
+    // Inspector Logic
+    let inspectorInitialized = false;
+    
+    function initInspector() {
+      if (inspectorInitialized) return;
+      
+      // Populate select dropdown
+      allRecords.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.bci_id;
+        opt.textContent = `${r.bci_id} - ${r.glosses.en || 'untitled'}`;
+        inspectorSelect.appendChild(opt);
+      });
+      
+      inspectorSelect.addEventListener('change', updateInspectorDisplay);
+      
+      inspectorGridToggle.addEventListener('change', () => {
+        const lines = document.querySelectorAll('.grid-overlay-line');
+        lines.forEach(line => {
+          if (inspectorGridToggle.checked) {
+            line.classList.add('visible');
+          } else {
+            line.classList.remove('visible');
+          }
+        });
+      });
+      
+      inspectorInitialized = true;
+    }
+    
+    function updateInspectorDisplay() {
+      const bciId = inspectorSelect.value;
+      if (!bciId) {
+        inspectorGlyphRender.textContent = '-';
+        inspectorMetaPanel.style.display = 'none';
+        inspectorSvgPanel.style.display = 'none';
+        return;
+      }
+      
+      const r = allRecords.find(x => x.bci_id === bciId);
+      if (!r) return;
+      
+      const origIdx = allRecords.findIndex(x => x.bci_id === bciId);
+      const cp = 0xE000 + origIdx;
+      const char = String.fromCharCode(cp);
+      
+      inspectorGlyphRender.textContent = char;
+      
+      // Update details
+      document.getElementById('ins-val-id').textContent = r.bci_id;
+      document.getElementById('ins-val-gloss-en').textContent = r.glosses.en || '-';
+      document.getElementById('ins-val-gloss-sv').textContent = r.glosses.sv || '-';
+      document.getElementById('ins-val-cat').textContent = r.category || '-';
+      document.getElementById('ins-val-pua').textContent = `U+${cp.toString(16).toUpperCase()}`;
+      document.getElementById('ins-val-proposed').textContent = r.proposed_unicode || 'PUA Only';
+      
+      const top_diac = r.anchors?.top_diacritic;
+      const bot_diac = r.anchors?.bottom_diacritic;
+      document.getElementById('ins-val-anchor-top').textContent = top_diac ? `X: ${top_diac.x}, Y: ${top_diac.y}` : 'N/A';
+      document.getElementById('ins-val-anchor-bot').textContent = bot_diac ? `X: ${bot_diac.x}, Y: ${bot_diac.y}` : 'N/A';
+      
+      // Render Raw SVG
+      let svgPaths = '';
+      if (r.geometry && r.geometry.stroke_paths) {
+        r.geometry.stroke_paths.forEach(p => {
+          svgPaths += `<path d="${p}" stroke="white" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none" />`;
+        });
+      }
+      const viewBoxWidth = r.geometry?.matrix_metrics?.base_width || 308;
+      inspectorSvgRender.innerHTML = `<svg viewBox="0 0 ${viewBoxWidth} 324" style="width: 100%; height: 100%;">${svgPaths}</svg>`;
+      
+      inspectorMetaPanel.style.display = 'block';
+      inspectorSvgPanel.style.display = 'block';
     }
 
     // Event Listeners
