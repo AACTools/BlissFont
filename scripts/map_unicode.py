@@ -47,9 +47,11 @@ def parse_unicode_pdf():
             elif bci_re.search(line):
                 bci_match = bci_re.search(line)
                 bci_val = bci_match.group(1).strip()
+                # Normalize BCI ID by stripping leading zeros if it is numeric
+                bci_val_norm = str(int(bci_val)) if bci_val.isdigit() else bci_val
                 if current_cp:
                     # Clean up the ID
-                    mapping[bci_val] = {
+                    mapping[bci_val_norm] = {
                         "unicode": f"U+{current_cp}",
                         "hex_cp": current_cp,
                         "name": current_name

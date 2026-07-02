@@ -243,7 +243,13 @@ def compile_weight(weight_name, stroke_val, weight_class, records):
         cff_glyphs[glyph_name] = pen.getCharString()
         metrics[glyph_name] = (advance_width, 0)
         
-        if r.get("category") == "Indicator":
+        gloss_lower = r.get("english_gloss", "").lower()
+        is_indicator = (
+            r.get("category") == "Indicator" or
+            gloss_lower.startswith("indicator_") or
+            gloss_lower == "plural"
+        )
+        if is_indicator:
             indicators.append(glyph_name)
         else:
             base_glyphs.append(glyph_name)
@@ -260,7 +266,14 @@ def compile_weight(weight_name, stroke_val, weight_class, records):
     
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader()
-    fb.setupNameTable({"familyName": "BlissFont", "styleName": weight_name})
+    fb.setupNameTable({
+        "familyName": "BlissFont",
+        "styleName": weight_name,
+        "uniqueFontIdentifier": f"BlissFont {weight_name}; 1.000; 2026",
+        "fullName": f"BlissFont {weight_name}",
+        "psName": f"BlissFont-{weight_name}",
+        "version": "Version 1.000"
+    })
     fb.setupOS2(usWeightClass=weight_class)
     fb.setupPost()
     
