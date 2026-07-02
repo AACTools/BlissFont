@@ -1,0 +1,17 @@
+patch:
+  style/font_face: "BlissFont-Regular"
+  style/font_point: 48             # Massive font size for Blissymbols visibility
+  style/label_font_point: 16       # Smaller label font size
+  style/candidate_format: "%c. %v"
+  style/horizontal: true           # Horizontal layout suitable for eye-gaze scanning
+  style/color_scheme: accessibility_high_contrast
+
+  preset_color_schemes/accessibility_high_contrast:
+    name: "Accessibility High Contrast"
+    author: "Antigravity"
+    back_color: 0xFFFFFF           # Clean white background
+    border_color: 0x000000         # Solid black borders
+    text_color: 0x000000           # Black text
+    candidate_text_color: 0x000000 # Black candidates
+    hilited_text_color: 0xFFFFFF   # White text on selection
+    hilited_back_color: 0xFF0000   # High-visibility red selection highlight

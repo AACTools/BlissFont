@@ -1,0 +1,14 @@
+patch:
+  "style/font_face": "BlissFont-Regular"
+  "style/font_point": 48             # Massive font size for Blissymbols visibility
+  "style/horizontal": true           # Horizontal layout for scanning
+  "style/color_scheme": accessibility_high_contrast
+
+  "preset_color_schemes/accessibility_high_contrast":
+    name: "Accessibility High Contrast"
+    back_color: 0xFFFFFF           # White background
+    border_color: 0x000000         # Black border
+    text_color: 0x000000           # Black input text
+    candidate_text_color: 0x000000 # Black candidate icons
+    hilited_text_color: 0xFFFFFF   # White highlighted text
+    hilited_back_color: 0xFF0000   # Red background for highlight
