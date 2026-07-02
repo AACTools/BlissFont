@@ -18,13 +18,32 @@
       --success-color: #3fb950;
       --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     }
-
     @font-face {
       font-family: 'BlissFont';
       src: url('data/processed/BlissFont-Regular.woff2?v=3') format('woff2'),
            url('data/processed/BlissFont-Regular.otf?v=3') format('opentype');
-      font-weight: normal;
+      font-weight: 400;
       font-style: normal;
+    }
+
+    @font-face {
+      font-family: 'BlissFont';
+      src: url('data/processed/BlissFont-SemiBold.woff2?v=3') format('woff2'),
+           url('data/processed/BlissFont-SemiBold.otf?v=3') format('opentype');
+      font-weight: 600;
+      font-style: normal;
+    }
+
+    @font-face {
+      font-family: 'BlissFont';
+      src: url('data/processed/BlissFont-Bold.woff2?v=3') format('woff2'),
+           url('data/processed/BlissFont-Bold.otf?v=3') format('opentype');
+      font-weight: 700;
+      font-style: normal;
+    }
+
+    .font-render, .sandbox-output, .key-radical, .legend-glyph {
+      font-weight: var(--font-weight, 400);
     }
 
     * {
@@ -598,6 +617,14 @@
             <option value="all">All Categories</option>
           </select>
         </div>
+        <div class="sidebar-section">
+          <h3>Font Weight</h3>
+          <select id="weight-select">
+            <option value="400">Regular (400)</option>
+            <option value="600">SemiBold (600)</option>
+            <option value="700">Bold (700)</option>
+          </select>
+        </div>
 
         <div class="sidebar-section">
           <h3>Sort By</h3>
@@ -657,12 +684,28 @@
         <p>Download the fully-compiled Blissymbolics OpenType outline font files containing dynamic diacritics positioning and contextual alternate rules.</p>
         <div class="dl-list">
           <div class="dl-item">
-            <span class="dl-item-label">BlissFont-Regular.otf</span>
-            <a class="dl-link" href="data/processed/BlissFont-Regular.otf" download>Download (722 KB)</a>
+            <span class="dl-item-label">BlissFont-Regular</span>
+            <div>
+              <a class="dl-link" href="data/processed/BlissFont-Regular.otf" download>OTF</a>
+              <span style="color: var(--border-color); margin: 0 5px;">|</span>
+              <a class="dl-link" href="data/processed/BlissFont-Regular.woff2" download>WOFF2</a>
+            </div>
           </div>
           <div class="dl-item">
-            <span class="dl-item-label">BlissFont-Regular.woff2</span>
-            <a class="dl-link" href="data/processed/BlissFont-Regular.woff2" download>Download (129 KB)</a>
+            <span class="dl-item-label">BlissFont-SemiBold</span>
+            <div>
+              <a class="dl-link" href="data/processed/BlissFont-SemiBold.otf" download>OTF</a>
+              <span style="color: var(--border-color); margin: 0 5px;">|</span>
+              <a class="dl-link" href="data/processed/BlissFont-SemiBold.woff2" download>WOFF2</a>
+            </div>
+          </div>
+          <div class="dl-item">
+            <span class="dl-item-label">BlissFont-Bold</span>
+            <div>
+              <a class="dl-link" href="data/processed/BlissFont-Bold.otf" download>OTF</a>
+              <span style="color: var(--border-color); margin: 0 5px;">|</span>
+              <a class="dl-link" href="data/processed/BlissFont-Bold.woff2" download>WOFF2</a>
+            </div>
           </div>
         </div>
       </div>
@@ -1088,6 +1131,11 @@
     searchInput.addEventListener('input', renderGrid);
     categoryFilter.addEventListener('change', renderGrid);
     sortSelect.addEventListener('change', renderGrid);
+
+    const weightSelect = document.getElementById('weight-select');
+    weightSelect.addEventListener('change', () => {
+      document.documentElement.style.setProperty('--font-weight', weightSelect.value);
+    });
   </script>
 </body>
 </html>

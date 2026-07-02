@@ -19,10 +19,6 @@ from shapely.geometry.polygon import orient
 DB_PATH = os.path.join("data", "processed", "bliss_vocabulary.db")
 JSON_PATH = os.path.join("data", "processed", "bliss_character_data.json")
 
-OUTPUT_OTF = os.path.join("data", "processed", "BlissFont-Regular.otf")
-OUTPUT_WOFF2 = os.path.join("data", "processed", "BlissFont-Regular.woff2")
-FEA_PATH = os.path.join("data", "processed", "features.fea")
-
 def evaluate_cubic_bezier(p0, p1, p2, p3, num_steps=12):
     points = []
     for step in range(1, num_steps + 1):
@@ -63,7 +59,6 @@ def recording_to_shapely_lines(recording):
             current_subpath.extend(pts)
             cursor = p3
         elif cmd == 'qCurveTo':
-            # Chained quadratic curve
             pts = args[0]
             if len(pts) >= 2:
                 prev = cursor
@@ -95,16 +90,13 @@ def clean_coords(coords):
         rx, ry = int(round(x)), int(round(y))
         if not cleaned or (rx, ry) != cleaned[-1]:
             cleaned.append((rx, ry))
-    # Closed loop requires at least 4 coordinates (V1, V2, V3, V1)
     if len(cleaned) >= 4:
         return cleaned
     return []
 
 def draw_polygon_to_pen(poly, pen):
-    # Ensure correct winding direction: exterior CCW (fills), interiors CW (holes)
     oriented = orient(poly, sign=1.0)
     
-    # Exterior
     ext_coords = clean_coords(oriented.exterior.coords)
     if len(ext_coords) >= 4:
         pen.moveTo(ext_coords[0])
@@ -112,7 +104,6 @@ def draw_polygon_to_pen(poly, pen):
             pen.lineTo(pt)
         pen.closePath()
         
-        # Draw interiors (Holes)
         for interior in oriented.interiors:
             int_coords = clean_coords(interior.coords)
             if len(int_coords) >= 4:
@@ -133,24 +124,16 @@ def draw_geometry_to_pen(geom, pen):
         for child in geom.geoms:
             draw_geometry_to_pen(child, pen)
 
-def main():
-    if not os.path.exists(JSON_PATH):
-        print(f"Error: JSON data file not found at {JSON_PATH}")
-        return
-        
-    with open(JSON_PATH, 'r', encoding='utf-8') as f:
-        records = json.load(f)
-        
-    print(f"Loading {len(records)} Blissymbol records...")
+def compile_weight(weight_name, stroke_val, weight_class, records):
+    print(f"\n--- Compiling weight: {weight_name} (Stroke Width: {stroke_val}, Class: {weight_class}) ---")
     
-    # 1. Initialize FontBuilder
     upm = 1000
     fb = FontBuilder(upm, isTTF=False)
     
     glyph_order = [".notdef", "space", "bracketleft", "bracketright"]
     cmap = {
-        0x005B: "bracketleft",  # Standard Left Bracket '['
-        0x005D: "bracketright"  # Standard Right Bracket ']'
+        0x005B: "bracketleft",
+        0x005D: "bracketright"
     }
     cff_glyphs = {}
     metrics = {}
@@ -198,18 +181,15 @@ def main():
     cff_glyphs["bracketright"] = pen.getCharString()
     metrics["bracketright"] = (300, 50)
     
-    # Track list of indicators and spacing base glyphs
     indicators = []
     base_glyphs = []
     
-    print("Compiling glyph contours with stroke-to-outline expansion...")
-    # 2. Iterate and build CFF charstrings
+    # Compile glyph contours
     for idx, r in enumerate(records):
         bci_id = r["bci_id"]
         glyph_name = f"glyph_{bci_id}"
         glyph_order.append(glyph_name)
         
-        # Codepoint mapping
         p_uni = r.get("proposed_unicode")
         if p_uni and p_uni.startswith("U+"):
             try:
@@ -221,30 +201,25 @@ def main():
         pua_cp = 0xE000 + idx
         cmap[pua_cp] = glyph_name
         
-        # Dimensions and metrics scaling
         vb_w = r["geometry"]["matrix_metrics"]["base_width"]
-        vb_h = 324.0 # default SVG height
+        vb_h = 324.0
         scale = upm / vb_h
         
-        # Stroke parameters (stroke-width=7 scaled into font coordinates)
-        stroke_width = 7.0 * scale
+        # Thicker stroke parameters for bold weights
+        stroke_width = stroke_val * scale
         radius = stroke_width / 2.0
         
-        # Setup temporary recording pen in font coordinates
         rec_pen = RecordingPen()
         tpen = TransformPen(rec_pen, (scale, 0, 0, -scale, 0, upm))
         
-        # Parse SVG paths and record them
         for path_def in r["geometry"]["stroke_paths"]:
             try:
                 parse_path(path_def, tpen)
-            except Exception as e:
-                pass # skip invalid path segments
+            except Exception:
+                pass
         
-        # Convert path commands to Shapely LineStrings
         lines = recording_to_shapely_lines(rec_pen.value)
         
-        # Expand each LineString into a Polygon outline
         polygons = []
         for line in lines:
             try:
@@ -253,13 +228,11 @@ def main():
             except Exception:
                 pass
                 
-        # Union all overlapping stroke polygons
         if polygons:
             union_geom = unary_union(polygons)
         else:
             union_geom = shapely.geometry.Polygon()
             
-        # Draw unioned geometry onto the Type 2 CharString Pen
         advance_width = int(vb_w * scale)
         pen = T2CharStringPen(advance_width, glyphSet=None)
         draw_geometry_to_pen(union_geom, pen)
@@ -267,44 +240,37 @@ def main():
         cff_glyphs[glyph_name] = pen.getCharString()
         metrics[glyph_name] = (advance_width, 0)
         
-        # Classify for features
         if r.get("category") == "Indicator":
             indicators.append(glyph_name)
         else:
             base_glyphs.append(glyph_name)
 
-    # Setup tables in FontBuilder
     fb.setupGlyphOrder(glyph_order)
     fb.setupCharacterMap(cmap)
     
     fb.setupCFF(
-        psName="BlissFont-Regular",
-        fontInfo={"FullName": "BlissFont Regular", "FamilyName": "BlissFont"},
+        psName=f"BlissFont-{weight_name}",
+        fontInfo={"FullName": f"BlissFont {weight_name}", "FamilyName": "BlissFont"},
         charStringsDict=cff_glyphs,
         privateDict={"BlueValues": [-20, 0, 800, 820]}
     )
     
     fb.setupHorizontalMetrics(metrics)
     fb.setupHorizontalHeader()
-    fb.setupNameTable({"familyName": "BlissFont", "styleName": "Regular"})
-    fb.setupOS2()
+    fb.setupNameTable({"familyName": "BlissFont", "styleName": weight_name})
+    fb.setupOS2(usWeightClass=weight_class)
     fb.setupPost()
     
-    # 3. Calculate bounds and compute diacritic anchors
-    print("Calculating diacritic anchor coordinates from outline bounds...")
+    # Calculate GPOS anchors based on current weight bounds
+    print("Calculating diacritic anchor coordinates...")
     glyph_set = fb.font.getGlyphSet()
-    
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    cursor.execute("PRAGMA table_info(symbols)")
-    cols = [col[1] for col in cursor.fetchall()]
-    for col in ["anchor_top_x", "anchor_top_y", "anchor_bot_x", "anchor_bot_y"]:
-        if col not in cols:
-            cursor.execute(f"ALTER TABLE symbols ADD COLUMN {col} REAL")
-    conn.commit()
-    
     anchor_lookup = {}
+    
+    # We update database and memory records ONLY for the default 'Regular' weight
+    update_db = (weight_name == "Regular")
+    if update_db:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
     
     for r in records:
         bci_id = r["bci_id"]
@@ -319,7 +285,7 @@ def main():
                 xMin, yMin, xMax, yMax = pen.bounds
                 cx = (xMin + xMax) / 2.0
                 
-                # Dynamic variable offsets based on height class of glyph
+                # Height class offset
                 glyph_height = yMax - yMin
                 if glyph_height < 300:
                     offset = 30
@@ -336,36 +302,33 @@ def main():
                     "bot": (int(cx), int(bot_y))
                 }
                 
-                cursor.execute("""
-                    UPDATE symbols 
-                    SET anchor_top_x = ?, anchor_top_y = ?, anchor_bot_x = ?, anchor_bot_y = ? 
-                    WHERE bci_id = ?
-                """, (cx, top_y, cx, bot_y, bci_id))
-                
-                r["anchors"]["top_diacritic"] = {"x": int(cx), "y": int(top_y)}
-                r["anchors"]["bottom_diacritic"] = {"x": int(cx), "y": int(bot_y)}
+                if update_db:
+                    cursor.execute("""
+                        UPDATE symbols 
+                        SET anchor_top_x = ?, anchor_top_y = ?, anchor_bot_x = ?, anchor_bot_y = ? 
+                        WHERE bci_id = ?
+                    """, (cx, top_y, cx, bot_y, bci_id))
+                    
+                    r["anchors"]["top_diacritic"] = {"x": int(cx), "y": int(top_y)}
+                    r["anchors"]["bottom_diacritic"] = {"x": int(cx), "y": int(bot_y)}
             else:
                 anchor_lookup[glyph_name] = {
                     "top": (500, 850),
                     "bot": (500, -50)
                 }
                 
-    conn.commit()
-    conn.close()
-    
-    with open(JSON_PATH, 'w', encoding='utf-8') as f:
-        json.dump(records, f, indent=2, ensure_ascii=False)
-    print("Updated database and JSON files with variable GPOS coordinates.")
-    
-    # 4. Generate OpenType features FEA file
-    print("Generating features.fea file...")
+    if update_db:
+        conn.commit()
+        conn.close()
+        
+        with open(JSON_PATH, 'w', encoding='utf-8') as f:
+            json.dump(records, f, indent=2, ensure_ascii=False)
+            
+    # Generate feature file for this weight
     fea_lines = []
-    
-    # Define classes
     fea_lines.append("# Glyph classes")
     fea_lines.append(f"@ALL_SYMBOLS = [{' '.join(base_glyphs)}];")
     
-    # Define indicators mark class
     fea_lines.append("\n# Mark definitions")
     if indicators:
         fea_lines.append(f"markClass [{' '.join(indicators)}] <anchor 0 0> @INDICATORS;")
@@ -384,23 +347,20 @@ def main():
     fea_lines.append("    } mark2base;")
     fea_lines.append("} mark;")
     
-    # Contextual Alternate Bracket Substitution for Combine Markers
+    # Combine marker GSUB
     fea_lines.append("\n# Contextual Substitutions for Combine Markers")
     fea_lines.append("feature calt {")
-    fea_lines.append("    # Substitute first combine_marker with left bracket")
     fea_lines.append("    sub glyph_13382' @ALL_SYMBOLS glyph_13382 by bracketleft;")
     fea_lines.append("    sub glyph_13382' @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382 by bracketleft;")
     fea_lines.append("    sub glyph_13382' @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382 by bracketleft;")
     fea_lines.append("    sub glyph_13382' @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382 by bracketleft;")
-    
-    # Substitute second combine_marker with right bracket
     fea_lines.append("    sub bracketleft @ALL_SYMBOLS glyph_13382' by bracketright;")
     fea_lines.append("    sub bracketleft @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382' by bracketright;")
     fea_lines.append("    sub bracketleft @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382' by bracketright;")
     fea_lines.append("    sub bracketleft @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS @ALL_SYMBOLS glyph_13382' by bracketright;")
     fea_lines.append("} calt;")
     
-    # Add RTL Mirroring GSUB feature
+    # RTL Mirroring
     fea_lines.append("\n# GSUB Mirroring for RTL Layouts")
     fea_lines.append("feature rtla {")
     fea_lines.append("    sub glyph_13902 by glyph_18224; # east -> west")
@@ -415,23 +375,60 @@ def main():
     fea_lines.append("    sub glyph_25604 by glyph_25577; # right_turn -> left_turn")
     fea_lines.append("} rtla;")
     
-    with open(FEA_PATH, 'w', encoding='utf-8') as f:
+    # Write temporary fea file for this compile
+    temp_fea = os.path.join("data", "processed", f"temp_{weight_name}.fea")
+    with open(temp_fea, 'w', encoding='utf-8') as f:
         f.write('\n'.join(fea_lines))
         
-    # 5. Compile FEA and inject tables
-    print("Compiling features and injecting GPOS/GSUB tables...")
-    builder = Builder(fb.font, FEA_PATH)
+    builder = Builder(fb.font, temp_fea)
     builder.build()
     
     # Save OTF
-    fb.save(OUTPUT_OTF)
-    print(f"OTF Font compiled successfully at: {OUTPUT_OTF}")
+    out_otf = os.path.join("data", "processed", f"BlissFont-{weight_name}.otf")
+    fb.save(out_otf)
+    print(f"OTF Font ({weight_name}) compiled successfully at: {out_otf}")
     
     # Save WOFF2
-    font = TTFont(OUTPUT_OTF)
+    out_woff2 = os.path.join("data", "processed", f"BlissFont-{weight_name}.woff2")
+    font = TTFont(out_otf)
     font.flavor = "woff2"
-    font.save(OUTPUT_WOFF2)
-    print(f"WOFF2 Font compressed and saved at: {OUTPUT_WOFF2}")
+    font.save(out_woff2)
+    print(f"WOFF2 Font ({weight_name}) compiled successfully at: {out_woff2}")
+    
+    # Clean temp file
+    if os.path.exists(temp_fea):
+        os.remove(temp_fea)
+
+def main():
+    if not os.path.exists(JSON_PATH):
+        print(f"Error: JSON data file not found at {JSON_PATH}")
+        return
+        
+    with open(JSON_PATH, 'r', encoding='utf-8') as f:
+        records = json.load(f)
+        
+    # We ensure anchors columns exist in SQLite symbols table
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(symbols)")
+    cols = [col[1] for col in cursor.fetchall()]
+    for col in ["anchor_top_x", "anchor_top_y", "anchor_bot_x", "anchor_bot_y"]:
+        if col not in cols:
+            cursor.execute(f"ALTER TABLE symbols ADD COLUMN {col} REAL")
+    conn.commit()
+    conn.close()
+    
+    # Define weights
+    weights = [
+        {"name": "Regular", "stroke": 7.0, "class": 400},
+        {"name": "SemiBold", "stroke": 10.0, "class": 600},
+        {"name": "Bold", "stroke": 13.0, "class": 700}
+    ]
+    
+    for w in weights:
+        compile_weight(w["name"], w["stroke"], w["class"], records)
+        
+    print("\nAll weights compiled successfully!")
 
 if __name__ == "__main__":
     main()
