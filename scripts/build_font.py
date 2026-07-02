@@ -265,7 +265,7 @@ def compile_weight(weight_name, stroke_val, weight_class, records):
     )
     
     fb.setupHorizontalMetrics(metrics)
-    fb.setupHorizontalHeader()
+    fb.setupHorizontalHeader(ascent=800, descent=-200, lineGap=0)
     fb.setupNameTable({
         "familyName": "BlissFont",
         "styleName": weight_name,
@@ -274,7 +274,14 @@ def compile_weight(weight_name, stroke_val, weight_class, records):
         "psName": f"BlissFont-{weight_name}",
         "version": "Version 1.000"
     })
-    fb.setupOS2(usWeightClass=weight_class)
+    fb.setupOS2(
+        sTypoAscender=800,
+        sTypoDescender=-200,
+        sTypoLineGap=0,
+        usWinAscent=800,
+        usWinDescent=200,
+        usWeightClass=weight_class
+    )
     fb.setupPost()
     
     # Calculate GPOS anchors based on current weight bounds
