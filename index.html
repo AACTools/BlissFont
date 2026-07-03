@@ -1421,11 +1421,11 @@
     function updateSandboxDisplay() {
       const val = sandboxInput.value;
       if (!val) {
-        sandboxDisplay.textContent = 'Preview Area';
+        sandboxDisplay.innerHTML = 'Preview Area';
       } else {
         const translateToggle = document.getElementById('sandbox-translate-toggle');
         if (translateToggle && translateToggle.checked) {
-          sandboxDisplay.textContent = translateTextToSymbols(val);
+          sandboxDisplay.innerHTML = translateTextToSymbols(val);
         } else {
           sandboxDisplay.textContent = val;
         }
@@ -1460,12 +1460,12 @@
           if (symbol) {
             const prefix = token.match(/^[.,\/#!$%\^&\*;:{}=\-_`~()]+/g) || "";
             const suffix = token.match(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/g) || "";
-            return prefix + symbol + suffix;
+            return escapeHtml(prefix) + symbol + escapeHtml(suffix);
           }
-          return token;
+          return escapeHtml(token);
         }).join('');
       });
-      return translatedLines.join('\n');
+      return translatedLines.join('<br>');
     }
 
     function translateWordToSymbol(word) {
@@ -1502,6 +1502,45 @@
       
       if (simpleLemmas[word]) {
         word = simpleLemmas[word];
+      }
+      
+      // Check compound resolution (plus-syntax or OOV rules)
+      let parts = null;
+      if (word.includes('+')) {
+        parts = word.split('+');
+      } else if (word === "cybersecurity") {
+        parts = ["computer", "protection"];
+      } else if (word === "aircar") {
+        parts = ["air", "car"];
+      }
+      
+      if (parts) {
+        const compRecords = parts.map(part => {
+          const cleanPart = part.trim().toLowerCase();
+          return allRecords.find(x => {
+            const gloss = x.glosses.en.toLowerCase().replace("-(to)", "").replace("_(to)", "").trim();
+            return gloss.split(/[\s_\-,]+/).includes(cleanPart);
+          });
+        });
+        
+        if (compRecords.every(r => r !== undefined)) {
+          let symbol = compileCompoundSvg(compRecords);
+          if (symbol) {
+            if (isPast) {
+              const pastIdx = allRecords.findIndex(x => x.bci_id === "9004");
+              if (pastIdx !== -1) symbol += String.fromCharCode(0xE000 + pastIdx);
+            }
+            if (isContinuous) {
+              const contIdx = allRecords.findIndex(x => x.bci_id === "28043");
+              if (contIdx !== -1) symbol += String.fromCharCode(0xE000 + contIdx);
+            }
+            if (isPlural) {
+              const plurIdx = allRecords.findIndex(x => x.bci_id === "9011");
+              if (plurIdx !== -1) symbol += String.fromCharCode(0xE000 + plurIdx);
+            }
+            return symbol;
+          }
+        }
       }
       
       let record = allRecords.find(r => {
@@ -1681,6 +1720,50 @@
         normB += vecB[i] * vecB[i];
       }
       return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    }
+
+    function escapeHtml(text) {
+      if (!text) return "";
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function transformPath(pathData, scaleX, scaleY, shiftX, shiftY, centerY = 258) {
+      return pathData.replace(/([-+]?\d*\.?\d+)\s+([-+]?\d*\.?\d+)/g, (match, xStr, yStr) => {
+        const x = parseFloat(xStr);
+        const y = parseFloat(yStr);
+        const newX = (x * scaleX) + shiftX;
+        const newY = centerY + (y - centerY) * scaleY + shiftY;
+        return `${newX.toFixed(1)} ${newY.toFixed(1)}`;
+      });
+    }
+
+    function compileCompoundSvg(components) {
+      if (!components || components.length === 0) return null;
+      if (components.some(c => !c || !c.geometry || !c.geometry.stroke_paths)) return null;
+      
+      const scale = 0.55;
+      const spacing = 15;
+      let currentShiftX = 0;
+      let svgPaths = '';
+      
+      components.forEach((comp, idx) => {
+        const w = comp.geometry.matrix_metrics?.base_width || 308;
+        const paths = comp.geometry.stroke_paths.map(p => 
+          transformPath(p, scale, scale, currentShiftX, 0)
+        );
+        paths.forEach(p => {
+          svgPaths += `<path d="${p}" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none" />`;
+        });
+        currentShiftX += w * scale + spacing;
+      });
+      
+      const totalWidth = currentShiftX - spacing;
+      return `<svg viewBox="0 0 ${totalWidth} 324" style="width: ${totalWidth / 324}em; height: 1em; display: inline-block; vertical-align: -0.2em; margin: 0 0.15em; overflow: visible;">${svgPaths}</svg>`;
     }
 
     function copyChar(c) {
