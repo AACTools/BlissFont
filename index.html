@@ -1589,9 +1589,9 @@
         blissWordIndices = [];
         allRecords.forEach(r => {
           const gloss = r.glosses.en.toLowerCase().replace("-(to)", "").replace("_(to)", "").trim();
-          const words = gloss.split(/\s+/);
+          const words = gloss.split(/[\s_\-]+/);
           words.forEach(w => {
-            const cleanWord = w.replace(/^[.,\/#!$%\^&\*;:{}=\-_`~()]+/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/g, "");
+            const cleanWord = w.replace(/^[.,\/#!$%\^&\*;:{}=\-_`~()]+/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/g, "").replace(/[()]/g, "");
             const idx = vectorVocab.indexOf(cleanWord);
             if (idx !== -1) {
               blissWordIndices.push({
