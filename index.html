@@ -1589,7 +1589,8 @@
         blissWordIndices = [];
         allRecords.forEach(r => {
           const gloss = r.glosses.en.toLowerCase().replace("-(to)", "").replace("_(to)", "").trim();
-          const words = gloss.split(/[\s_\-]+/);
+          // Split by spaces, underscores, dashes, and commas
+          const words = gloss.split(/[\s_\-,]+/);
           words.forEach(w => {
             const cleanWord = w.replace(/^[.,\/#!$%\^&\*;:{}=\-_`~()]+/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/g, "").replace(/[()]/g, "");
             const idx = vectorVocab.indexOf(cleanWord);
@@ -1646,11 +1647,17 @@
       
       for (let i = 0; i < blissWordIndices.length; i++) {
         const item = blissWordIndices[i];
-        const blissVec = vectorMatrix.subarray(item.vocab_idx * 50, (item.vocab_idx + 1) * 50);
+        const rec = allRecords.find(x => x.bci_id === item.bci_id);
+        const isIndicator = rec && rec.category === "Indicator";
         
+        const blissVec = vectorMatrix.subarray(item.vocab_idx * 50, (item.vocab_idx + 1) * 50);
         const sim = cosineSimilarity(targetVec, blissVec);
-        if (sim > highestSimilarity) {
-          highestSimilarity = sim;
+        
+        // Subtract a tiny weight if it's an indicator to prioritize spacing symbols
+        const adjustedSim = isIndicator ? (sim - 0.05) : sim;
+        
+        if (adjustedSim > highestSimilarity) {
+          highestSimilarity = adjustedSim;
           bestBciId = item.bci_id;
         }
       }
