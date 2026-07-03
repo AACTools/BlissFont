@@ -889,6 +889,10 @@
               <span class="info-label">Proposed Uni:</span>
               <span class="info-value" id="ins-val-proposed">-</span>
             </div>
+            <div class="info-row" style="flex-wrap: wrap;">
+              <span class="info-label">Recipe:</span>
+              <span class="info-value" id="ins-val-recipe">-</span>
+            </div>
             <div class="info-row">
               <span class="info-label">Anchor Top:</span>
               <span class="info-value" id="ins-val-anchor-top">-</span>
@@ -1281,9 +1285,13 @@
       const sortBy = sortSelect.value;
       
       let filtered = allRecords.filter((r, idx) => {
+        const compMatch = r.derivation_components && r.derivation_components.some(c => 
+          c.gloss && c.gloss.toLowerCase().includes(search)
+        );
         const glossMatch = (r.glosses.en && r.glosses.en.toLowerCase().includes(search)) || 
                            (r.glosses.sv && r.glosses.sv.toLowerCase().includes(search)) ||
-                           r.bci_id.toString().includes(search);
+                           r.bci_id.toString().includes(search) ||
+                           compMatch;
                            
         const catMatch = cat === 'all' || r.category === cat;
         
@@ -1348,6 +1356,14 @@
             <div class="info-row">
               <span class="info-label">Proposed:</span>
               <span class="info-value">${r.proposed_unicode || 'PUA Only'}</span>
+            </div>
+            <div class="info-row" style="flex-wrap: wrap;">
+              <span class="info-label">Recipe:</span>
+              <span class="info-value" style="font-size: 11px; line-height: 1.3;">
+                ${(r.derivation_components && r.derivation_components.length > 0) 
+                  ? r.derivation_components.map(c => `<a href="#" onclick="viewInInspector('${c.bci_id}'); return false;" style="color: #58a6ff; text-decoration: none;">${c.gloss}</a>`).join(' + ') 
+                  : 'Primitive'}
+              </span>
             </div>
           </div>
           <div style="display: flex; gap: 8px; margin-top: 12px; width: 100%;">
@@ -1652,6 +1668,11 @@
       document.getElementById('ins-val-cat').textContent = r.category || '-';
       document.getElementById('ins-val-pua').textContent = `U+${cp.toString(16).toUpperCase()}`;
       document.getElementById('ins-val-proposed').textContent = r.proposed_unicode || 'PUA Only';
+      
+      const recipeValue = (r.derivation_components && r.derivation_components.length > 0) 
+        ? r.derivation_components.map(c => `<a href="#" onclick="viewInInspector('${c.bci_id}'); return false;" style="color: #58a6ff; text-decoration: none;">${c.gloss}</a>`).join(' + ') 
+        : 'Primitive';
+      document.getElementById('ins-val-recipe').innerHTML = recipeValue;
       
       const top_diac = r.anchors?.top_diacritic;
       const bot_diac = r.anchors?.bottom_diacritic;

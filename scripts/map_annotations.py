@@ -10,18 +10,14 @@ DB_PATH = os.path.join("data", "processed", "bliss_vocabulary.db")
 JSON_PATH = os.path.join("data", "processed", "bliss_character_data.json")
 
 def parse_nameslist_pdf():
-    # Read the 103-page PDF and extract code points and BCI ID associations
     reader = pypdf.PdfReader(PDF_PATH)
     print(f"Reading names list annotations from: {PDF_PATH}")
     
-    # Matches character line: e.g. "16543 BLISSYMBOL SISTER OF MOTHER"
     char_re = re.compile(r'^([10][0-9A-F]{4})\s+.*?BLISSYMBOL\s+(.+)$')
-    
     metadata = {}
     current_cp = None
     
     for idx, page in enumerate(reader.pages):
-        # Names list resides between page 31 and 66
         if idx < 30 or idx > 66:
             continue
         text = page.extract_text() or ''
@@ -42,7 +38,6 @@ def parse_nameslist_pdf():
                     "notes": []
                 }
             elif current_cp and line.startswith("•"):
-                # Parse bullet points
                 if "BCI-AV-" in line:
                     parts = line.split("BCI-AV-")
                     metadata[current_cp]["bci_av"] = parts[1].strip()
@@ -57,7 +52,6 @@ def parse_nameslist_pdf():
                 else:
                     metadata[current_cp]["notes"].append(line.replace("•", "").strip())
             elif current_cp and line.startswith("="):
-                # Parse synonym gloss annotations
                 syn = line.replace("=", "").strip()
                 metadata[current_cp]["synonyms"].append(syn)
                 
@@ -69,6 +63,22 @@ def update_database_and_json(metadata):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
+    # 1. Build lookup maps for derivations
+    cursor.execute("SELECT bci_id, english_gloss FROM symbols")
+    gloss_map = {row[0]: row[1] for row in cursor.fetchall()}
+    
+    cursor.execute("SELECT bci_id, component_bci_id FROM resolved_derivations")
+    components_by_id = {}
+    for bci_id, comp_id in cursor.fetchall():
+        if bci_id not in components_by_id:
+            components_by_id[bci_id] = []
+        comp_gloss = gloss_map.get(comp_id, f"unknown ({comp_id})")
+        comp_gloss_clean = comp_gloss.replace("-(to)", "").replace("_(to)", "").strip()
+        components_by_id[bci_id].append({
+            "bci_id": comp_id,
+            "gloss": comp_gloss_clean
+        })
+
     # Ensure columns exist in symbols table
     cursor.execute("PRAGMA table_info(symbols)")
     cols = [col[1] for col in cursor.fetchall()]
@@ -77,7 +87,8 @@ def update_database_and_json(metadata):
         "n1866_ref": "TEXT",
         "msbi_ref": "TEXT",
         "is_radical": "INTEGER DEFAULT 0",
-        "synonym_annotations": "TEXT"
+        "synonym_annotations": "TEXT",
+        "derivation_components_json": "TEXT"
     }
     for col_name, col_type in new_cols.items():
         if col_name not in cols:
@@ -95,6 +106,24 @@ def update_database_and_json(metadata):
     updated_db_count = 0
     updated_json_count = 0
     
+    # Pre-populate components for JSON records
+    for rec in records:
+        r_id = rec["bci_id"]
+        # Strip prefixes to match resolved_derivations mapping
+        clean_id = r_id
+        for prefix in ["c-", "m-", "b-"]:
+            if r_id.startswith(prefix):
+                clean_id = r_id[len(prefix):]
+                break
+        
+        comps = components_by_id.get(clean_id, [])
+        rec["derivation_components"] = comps
+        
+        # Save components JSON to SQLite database
+        comps_str = json.dumps(comps, ensure_ascii=False)
+        cursor.execute("UPDATE symbols SET derivation_components_json = ? WHERE bci_id = ?", (comps_str, r_id))
+    
+    # Update properties from nameslist metadata
     for val in metadata.values():
         bci_av = val["bci_av"]
         if not bci_av:
@@ -104,7 +133,6 @@ def update_database_and_json(metadata):
         synonyms_str = json.dumps(val["synonyms"], ensure_ascii=False)
         
         # Update SQLite table
-        # Matches direct BCI ID or variant prefixes
         query = """
             UPDATE symbols 
             SET n1866_ref = ?, msbi_ref = ?, is_radical = ?, synonym_annotations = ?
