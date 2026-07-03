@@ -897,6 +897,22 @@
               <span class="info-label">Anchor Bottom:</span>
               <span class="info-value" id="ins-val-anchor-bot">-</span>
             </div>
+            <div class="info-row">
+              <span class="info-label">Synonyms:</span>
+              <span class="info-value" id="ins-val-synonyms">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">N1866 Ref:</span>
+              <span class="info-value" id="ins-val-n1866">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">MSBI (RTL):</span>
+              <span class="info-value" id="ins-val-msbi">-</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Lexicography:</span>
+              <span class="info-value" id="ins-val-radical">-</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1641,6 +1657,11 @@
       const bot_diac = r.anchors?.bottom_diacritic;
       document.getElementById('ins-val-anchor-top').textContent = top_diac ? `X: ${top_diac.x}, Y: ${top_diac.y}` : 'N/A';
       document.getElementById('ins-val-anchor-bot').textContent = bot_diac ? `X: ${bot_diac.x}, Y: ${bot_diac.y}` : 'N/A';
+      
+      document.getElementById('ins-val-synonyms').textContent = (r.synonym_annotations && r.synonym_annotations.length > 0) ? r.synonym_annotations.join(', ') : '-';
+      document.getElementById('ins-val-n1866').textContent = r.n1866_ref || '-';
+      document.getElementById('ins-val-msbi').textContent = r.msbi_ref ? `Page ${r.msbi_ref}` : '-';
+      document.getElementById('ins-val-radical').textContent = r.is_radical ? 'Radical (No core meaning)' : 'Full semantic character';
       
       // Render Raw SVG
       let svgPaths = '';
