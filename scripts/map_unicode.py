@@ -133,46 +133,54 @@ def update_database_and_json(mappings):
 def generate_unibliss_txt(mappings):
     print(f"Generating Unicode property file: {OUTPUT_TXT_PATH}")
     
-    # Conforms to standard UnicodeData.txt format
-    # Fields:
-    # 1. CodePoint (hex)
-    # 2. Name
-    # 3. General Category (Lo = Letter Other, Mn = Mark Nonspacing, etc.)
-    # 4. Canonical Combining Class (0 for spacing characters)
-    # 5. Bidi Class (L = Left-to-Right)
-    # 6. Decomposition
-    # 7. Decimal digit value
-    # 8. Digit value
-    # 9. Numeric value
-    # 10. Bidi Mirrored (N by default, Y for directional symbols)
-    # 11. Unicode 1.0 Name (empty)
-    # 12. ISO Comment (empty)
-    # 13. Simple Uppercase (empty)
-    # 14. Simple Lowercase (empty)
-    # 15. Simple Titlecase (empty)
-    
-    # Sort mappings by hex code point
+    # 1. Parse exact properties from PDF Section 12
+    pdf_properties = {}
+    try:
+        reader = pypdf.PdfReader(PDF_PATH)
+        # Matches UnicodeData.txt line format, e.g. "16761;BLISSYMBOL OPENING PARENTHESIS;Ps;0;ON;;;;;Y;;;;;"
+        prop_re = re.compile(r'^([10][0-9A-F]{4});BLISSYMBOL\s+([^;]+);([A-Za-z]+);(\d+);([A-Z]+);')
+        for page in reader.pages:
+            text = page.extract_text() or ''
+            for line in text.split('\n'):
+                line = line.strip()
+                match = prop_re.match(line)
+                if match:
+                    cp_hex = match.group(1)
+                    pdf_properties[cp_hex] = line
+        print(f"Extracted {len(pdf_properties)} exact property definitions from PDF Section 12.")
+    except Exception as e:
+        print(f"Warning: Could not parse exact properties from PDF: {e}. Falling back to generation rules.")
+
+    # 2. Sort mappings by hex code point
     sorted_cps = sorted(mappings.values(), key=lambda x: x["hex_cp"])
     
     with open(OUTPUT_TXT_PATH, 'w', encoding='utf-8') as f:
         for val in sorted_cps:
             cp = val["hex_cp"]
-            name = val["name"].upper()
-            
-            # Determine General Category:
-            # Indicators are combining marks, so they get 'Mn' (Mark, Nonspacing) or 'Sk'
-            category = "Lo"  # default to Letter, Other (spacing character)
-            if "INDICATOR" in name or "COMBINING" in name:
-                category = "Mn"
+            if cp in pdf_properties:
+                # Use the exact line from the PDF proposal
+                f.write(pdf_properties[cp] + "\n")
+            else:
+                name = val["name"].upper()
                 
-            mirrored = "N"
-            # Mark certain directional characters as mirrored
-            if "ARROW" in name or "REVERSED" in name or "LEFT" in name or "RIGHT" in name:
-                mirrored = "Y"
+                # Determine properties programmatically
+                category = "Lo"  # Default Category
+                combining_class = "0"
+                bidi_class = "ON"  # Default to Other Neutral for flexible directionality
                 
-            line = f"{cp};{name};{category};0;L;;;;;{mirrored};;;;;\n"
-            f.write(line)
-            
+                if "INDICATOR" in name or "COMBINING" in name:
+                    category = "Mn"
+                    combining_class = "230"
+                    bidi_class = "NSM"
+                    
+                mirrored = "N"
+                # Mark directional characters as mirrored
+                if any(w in name for w in ["ARROW", "REVERSED", "LEFT", "RIGHT", "POINTER", "SLANTED"]):
+                    mirrored = "Y"
+                    
+                line = f"{cp};{name};{category};{combining_class};{bidi_class};;;;;{mirrored};;;;;\n"
+                f.write(line)
+                
     print("Unibliss.txt property file written successfully!")
 
 def main():
