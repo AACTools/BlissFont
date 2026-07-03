@@ -740,6 +740,17 @@
       <button class="copy-btn" id="sandbox-clear-btn" style="margin-top: 0; background: #21262d; border-color: #30363d;">Clear Sandbox</button>
     </div>
     
+    <div style="display: flex; align-items: center; gap: 20px; margin-top: 12px; margin-bottom: 8px;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="sandbox-translate-toggle" style="cursor: pointer; width: 16px; height: 16px; margin: 0;">
+        <label for="sandbox-translate-toggle" style="cursor: pointer; color: var(--text-muted); font-size: 14px; user-select: none;">Instant English Translation Mode</label>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="sandbox-rtl-toggle" style="cursor: pointer; width: 16px; height: 16px; margin: 0;">
+        <label for="sandbox-rtl-toggle" style="cursor: pointer; color: var(--text-muted); font-size: 14px; user-select: none;">RTL Direction (Hebrew/Arabic Layout)</label>
+      </div>
+    </div>
+    
     <div class="sandbox-output" id="sandbox-display">Preview Area</div>
   </div>
 
@@ -1323,7 +1334,10 @@
               <span class="info-value">${r.proposed_unicode || 'PUA Only'}</span>
             </div>
           </div>
-          <button class="copy-btn" onclick="copyChar('${char_pua}')">Copy Symbol</button>
+          <div style="display: flex; gap: 8px; margin-top: 12px; width: 100%;">
+            <button class="copy-btn" style="margin-top: 0; flex: 1;" onclick="copyChar('${char_pua}')">Copy</button>
+            <button class="copy-btn" style="margin-top: 0; flex: 1; background: #238636; border-color: #2ea44f;" onclick="viewInInspector('${r.bci_id}')">View Glyph</button>
+          </div>
         `;
         grid.appendChild(card);
       }
@@ -1355,6 +1369,20 @@
         sandboxInput.value = '';
         updateSandboxDisplay();
       });
+
+      const translateToggle = document.getElementById('sandbox-translate-toggle');
+      translateToggle.addEventListener('change', updateSandboxDisplay);
+
+      const rtlToggle = document.getElementById('sandbox-rtl-toggle');
+      rtlToggle.addEventListener('change', () => {
+        if (rtlToggle.checked) {
+          sandboxDisplay.style.direction = 'rtl';
+          sandboxDisplay.style.textAlign = 'right';
+        } else {
+          sandboxDisplay.style.direction = 'ltr';
+          sandboxDisplay.style.textAlign = 'left';
+        }
+      });
     }
 
     function updateSandboxDisplay() {
@@ -1362,8 +1390,116 @@
       if (!val) {
         sandboxDisplay.textContent = 'Preview Area';
       } else {
-        sandboxDisplay.textContent = val;
+        const translateToggle = document.getElementById('sandbox-translate-toggle');
+        if (translateToggle && translateToggle.checked) {
+          sandboxDisplay.textContent = translateTextToSymbols(val);
+        } else {
+          sandboxDisplay.textContent = val;
+        }
       }
+    }
+
+    const simpleLemmas = {
+      "am": "be", "is": "be", "are": "be", "was": "be", "were": "be", "been": "be", "being": "be",
+      "went": "go", "gone": "go", "going": "go", "goes": "go",
+      "saw": "see", "seen": "see", "seeing": "see", "sees": "see",
+      "read": "read-(to)", "reading": "read-(to)", "reads": "read-(to)",
+      "wrote": "write-(to)", "written": "write-(to)", "writing": "write-(to)", "writes": "write-(to)",
+      "forgot": "forget-(to)", "forgotten": "forget-(to)", "forgetting": "forget-(to)", "forgets": "forget-(to)",
+      "ate": "eat-(to)", "eaten": "eat-(to)", "eating": "eat-(to)", "eats": "eat-(to)",
+      "sat": "sit-(to)", "sitting": "sit-(to)", "sits": "sit-(to)",
+      "likes": "like-(to)", "liked": "like-(to)", "liking": "like-(to)",
+      "has": "have-(to)", "had": "have-(to)", "having": "have-(to)", "have": "have-(to)",
+      "dogs": "dog", "cats": "cat", "girls": "girl", "boys": "boy", "children": "child", "houses": "house",
+      "flowers": "flower", "books": "book", "hearts": "heart", "words": "word", "symbols": "symbol"
+    };
+
+    function translateTextToSymbols(text) {
+      const lines = text.split('\n');
+      const translatedLines = lines.map(line => {
+        const tokens = line.split(/(\s+)/);
+        return tokens.map(token => {
+          if (!token.trim()) return token;
+          
+          const cleanWord = token.replace(/^[.,\/#!$%\^&\*;:{}=\-_`~()]+/g, "").replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/g, "");
+          const symbol = translateWordToSymbol(cleanWord);
+          
+          if (symbol) {
+            const prefix = token.match(/^[.,\/#!$%\^&\*;:{}=\-_`~()]+/g) || "";
+            const suffix = token.match(/[.,\/#!$%\^&\*;:{}=\-_`~()]+$/g) || "";
+            return prefix + symbol + suffix;
+          }
+          return token;
+        }).join('');
+      });
+      return translatedLines.join('\n');
+    }
+
+    function translateWordToSymbol(word) {
+      word = word.toLowerCase().trim();
+      if (!word) return null;
+      
+      let isPast = false;
+      let isPlural = false;
+      let isContinuous = false;
+      
+      if (word.endsWith("s") && word.length > 3 && !word.endsWith("ss") && !["is", "was", "has"].includes(word)) {
+        isPlural = true;
+        if (word.endsWith("es")) {
+          word = word.slice(0, -2);
+        } else {
+          word = word.slice(0, -1);
+        }
+      }
+      
+      if (["went", "saw", "wrote", "forgot", "ate", "sat", "liked", "had"].includes(word)) {
+        isPast = true;
+      }
+      
+      if (word.endsWith("ing") && word.length > 5 && !["ring", "sing", "wing"].includes(word)) {
+        isContinuous = true;
+        word = word.slice(0, -3);
+        if (word.length > 3 && word[word.length-1] === word[word.length-2]) {
+          word = word.slice(0, -1);
+        }
+        if (["writ", "mak", "hav", "com"].includes(word)) {
+          word = word + "e";
+        }
+      }
+      
+      if (simpleLemmas[word]) {
+        word = simpleLemmas[word];
+      }
+      
+      let record = allRecords.find(r => {
+        const gloss = r.glosses.en.toLowerCase();
+        return gloss === word || gloss === `${word}-(to)` || gloss === `${word}_(to)` || gloss === `to_${word}`;
+      });
+      
+      if (!record) {
+        record = allRecords.find(r => r.glosses.en.toLowerCase().includes(word));
+      }
+      
+      if (record) {
+        const origIdx = allRecords.findIndex(x => x.bci_id === record.bci_id);
+        let char = String.fromCharCode(0xE000 + origIdx);
+        
+        if (isPast) {
+          const pastIdx = allRecords.findIndex(x => x.bci_id === "9004");
+          if (pastIdx !== -1) char += String.fromCharCode(0xE000 + pastIdx);
+        }
+        if (isContinuous) {
+          const contIdx = allRecords.findIndex(x => x.bci_id === "28043");
+          if (contIdx !== -1) char += String.fromCharCode(0xE000 + contIdx);
+        }
+        if (isPlural) {
+          const plurIdx = allRecords.findIndex(x => x.bci_id === "9011");
+          if (plurIdx !== -1) char += String.fromCharCode(0xE000 + plurIdx);
+        }
+        return char;
+      }
+      
+      return null;
     }
 
     function copyChar(c) {
@@ -1466,7 +1602,15 @@
       
       inspectorInitialized = true;
     }
-    
+
+    function viewInInspector(bciId) {
+      initInspector();
+      inspectorSelect.value = bciId;
+      updateInspectorDisplay();
+      tabInsBtn.click();
+    }
+    window.viewInInspector = viewInInspector;
+
     function updateInspectorDisplay() {
       const bciId = inspectorSelect.value;
       if (!bciId) {
