@@ -49,17 +49,40 @@ and the respective licence terms with them.
   (`0xF0000 + BCI_ID`) as a transitional, redundancy-preserving encoding —
   official scalars always take precedence in downstream consumers.
 
-## GloVe 6B (50d)
+## GloVe 6B (50d / 300d)
 - **Authors**: Jeffrey Pennington, Richard Socher, Christopher D. Manning
   (Stanford), https://nlp.stanford.edu/projects/glove/
-- **Used for**: the offline 100k-word vector database (`vocab.txt` +
-  `vectors.bin`, float16) powering the web sandbox semantic fallback and the
-  blissbench `blissfont-compose` runner. Built by `scripts/build_vector_db.py`
-  from the JeremiahZ/glove mirror on Hugging Face.
+- **Licence: pre-trained vectors are PDDL v1.0 (public domain)** per
+  https://nlp.stanford.edu/projects/glove/ — no attribution obligation;
+  credited here as good practice. (The GloVe *code* is Apache 2.0; we ship
+  only vectors.)
+- **Used for**: the offline vector databases (`vocab.txt` + `vectors.bin`
+  50d; regenerable `vectors300.bin` for bench work) powering the web sandbox
+  semantic fallback, the resolver's semantic layer, and the blissbench
+  runner. 50d files fetched from the JeremiahZ/glove mirror on Hugging Face;
+  300d from stanfordnlp/glove.
 
 ## Blissary dictionary snapshot (blissbench data)
 - **Authors**: Hannes Ljusås / Blissary, meanings drawing on BCI-AV
   (CC-BY-SA 4.0) — see `../blissbench/data/manifest.json` when present.
+
+## ConceptNet 5.7
+- **Authors**: Commonsense Computing Initiative contributors; maintained by
+  Luminoso Technologies. https://conceptnet.io
+- **Licence: CC BY-SA 4.0** (per-edge `license` fields vary; the aggregate is
+  share-alike). Stored only in `symbol_hub.db.conceptnet_edges`
+  (`scripts/load_conceptnet.py`, 1.97M edges from the 5.7.0 assertions dump)
+  — **never exported into the shipped resolver asset**; keep separable.
+  Loaded from
+  https://s3.amazonaws.com/conceptnet/downloads/2019/edges/conceptnet-assertions-5.7.0.csv.gz
+
+## sql.js
+- **Author**: sql.js authors (Alon Zakai / kripken), https://sql.js
+- **Licence: MIT.** Loaded from cdnjs by index.html, hub.html and ruby.html
+  to run the resolver database in WebAssembly.
+
+## Sibling tooling in the web pages
+- Loaded from CDN at runtime; no redistribution occurs from this repository.
 
 ---
 **Licence gap (deliberately unresolved):** this repository does not yet

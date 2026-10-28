@@ -11,13 +11,25 @@ Pair repo: [BlissNLP](https://github.com/AACTools/BlissNLP) (English→Bliss pip
 
 ```bash
 uv sync
-uv run python scripts/download_data.py        # BCI-AV SVGs + xlsx
-uv run python scripts/map_unicode.py          # L2/23-138 scalars → Unibliss.txt
-uv run python scripts/build_font.py           # outline fonts
-uv run python scripts/build_blissary_font.py  # stroke fonts (Blissary SVGs)
-uv run python scripts/integrate_crosswalk.py  # + Blissary B-codes
-uv run python scripts/merge_all_languages.py  # + 18 langs, WinBliss
+uv run python scripts/build_all.py    # fresh clone -> everything
+```
+
+Or step-by-step (same order):
+
+```bash
+uv run python scripts/download_data.py        # BCI-AV SVGs + xlsx + proposal PDFs
+uv run python scripts/build_database.py       # -> bliss_character_data.json + SQLite
+uv run python scripts/analyze_derivations.py  # + derivation_components, collation weights
+uv run python scripts/map_unicode.py          # + proposed scalars -> Unibliss.txt
+uv run python scripts/map_annotations.py      # + N1866 / MSBI / radical annotations
+uv run python scripts/build_font.py           # outline fonts x3 weights
+uv run python scripts/build_blissary_font.py  # stroke fonts x3 weights
+uv run python scripts/integrate_crosswalk.py  # + Blissary B-codes (99.8%)
+uv run python scripts/merge_all_languages.py  # + 18 languages, WinBliss
 uv run python scripts/build_vector_db.py      # web GloVe db (50d)
+uv run python scripts/build_semantic_db.py    # bliss_semantic.db
+uv run python scripts/build_symbol_hub.py build
+uv run python scripts/export_web_asset.py     # data/web/bliss_resolver.bin
 ```
 
 ## Encoding (3 layers)

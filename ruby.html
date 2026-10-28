@@ -81,10 +81,11 @@
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+<script src="resolver.js"></script>
 <script>
 let db = null;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const norm = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+const norm = Resolver.norm;
 
 async function init() {
   const status = document.getElementById('status');
@@ -98,27 +99,11 @@ async function init() {
 
 // word -> {bci, pua, gloss} via staged lookup: exact label -> prefix -> head word
 function lookup(word) {
-  const q = norm(word);
-  if (!q) return null;
-  const go = (term, sql, args) => {
-    const r = db.exec(sql, args);
-    return r.length ? r[0].values[0] : null;
-  };
-  const COLS = `SELECT s.key, s.pua_stable, s.gloss_en, s.pos FROM labels l
-                JOIN symbols s ON s.key = l.symbol_key
-                WHERE l.lang='en' AND l.norm = ? LIMIT 1`;
-  let row = go(q, COLS, [q]);
-  if (!row) row = go(q + 's', COLS, [q + 's']);
-  if (!row) row = go(q.replace(/e?s$/, ''), COLS, [q.replace(/e?s$/, '')]);
-  if (!row) {
-    const r = db.exec(`SELECT s.key, s.pua_stable, s.gloss_en, s.pos FROM labels l
-                       JOIN symbols s ON s.key = l.symbol_key
-                       WHERE l.lang='en' AND l.norm LIKE ?
-                       ORDER BY LENGTH(l.norm) LIMIT 1`, [q + '%']);
-    row = r.length ? r[0].values[0] : null;
-  }
-  if (!row) return null;
-  return { bci: row[0], pua: row[1], gloss: row[2], pos: row[3] };
+  // shared staged lookup: exact -> plural retry -> shortest prefix
+  const rows = Resolver.labelQuery(db, word);
+  if (!rows.length) return null;
+  const [key, gloss, pos, pua] = rows[0];
+  return { bci: key, pua, gloss, pos };
 }
 
 const imgCache = new Map();

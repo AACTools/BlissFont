@@ -16,7 +16,7 @@ import gzip
 import json
 import os
 import sqlite3
-import sys
+
 import urllib.request
 
 DUMP = os.path.join("data", "raw", "conceptnet-assertions-5.7.0.csv.gz")

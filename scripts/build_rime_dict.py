@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os
-import sqlite3
+
 import re
 import json
 

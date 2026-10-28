@@ -5,7 +5,7 @@ import sqlite3
 import json
 import pandas as pd
 import xml.etree.ElementTree as ET
-from collections import defaultdict
+
 
 RAW_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "raw"))
 PROCESSED_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "processed"))
