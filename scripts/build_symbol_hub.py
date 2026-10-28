@@ -311,6 +311,109 @@ def link(conn: sqlite3.Connection) -> None:
         print(f"{slug}: exact links {n_exact}, head-word links {n_head} (of {ext} symbols)")
 
 
+# ----------------------------------------------------------------- ConceptNet layer
+def cn_maps(conn: sqlite3.Connection):
+    """Synonym/SimilarTo expansions + antonym guard, restricted to the Bliss
+    label vocabulary so links stay label-to-label."""
+    bliss_norms = {r[0] for r in conn.execute(
+        "SELECT DISTINCT l.norm FROM labels l JOIN symbols s ON s.id=l.symbol_id "
+        "WHERE s.dataset='bliss-bciav' AND l.lang='en'")}
+    syn, ant = {}, {}
+    for lemma, rel, other in conn.execute(
+        "SELECT lemma, relation, other FROM conceptnet_edges "
+        "WHERE relation IN ('Synonym','SimilarTo','Antonym','FormOf')"):
+        if lemma in bliss_norms and other in bliss_norms:
+            if rel == 'Antonym':
+                ant.setdefault(lemma, set()).add(other)
+            else:
+                syn.setdefault(lemma, set()).add(other)
+    return bliss_norms, syn, ant
+
+
+def link2(conn: sqlite3.Connection) -> None:
+    """v2 linking: for external labels that did NOT exact-match in v1, expand
+    through ConceptNet (Synonym/SimilarTo, either direction) and link when an
+    expansion lands on a Bliss label norm. Antonym pairs are excluded."""
+    cur = conn.cursor()
+    sets = [r["slug"] for r in cur.execute("SELECT slug FROM datasets WHERE slug != 'bliss-bciav'")]
+    if not sets:
+        print("no external datasets loaded")
+        return
+    bliss_norms = {r[0] for r in conn.execute(
+        "SELECT DISTINCT l.norm FROM labels l JOIN symbols s ON s.id=l.symbol_id "
+        "WHERE s.dataset='bliss-bciav' AND l.lang='en'")}
+    print(f"bliss label norms: {len(bliss_norms)}")
+
+    def bliss_symbol(norm):
+        row = cur.execute(
+            "SELECT l.symbol_id FROM labels l JOIN symbols s ON s.id=l.symbol_id "
+            "WHERE s.dataset='bliss-bciav' AND l.lang='en' AND l.norm=? "
+            "ORDER BY CASE WHEN s.pos='noun' THEN 0 ELSE 1 END LIMIT 1", (norm,)
+        ).fetchone()
+        return row[0] if row else None
+
+    total_new = 0
+    for slug in sets:
+        # external symbols that have NO bliss link yet (v1 missed them)
+        ext_rows = cur.execute(
+            "SELECT l.norm, s.id FROM labels l JOIN symbols s ON s.id=l.symbol_id "
+            "WHERE s.dataset=? AND l.lang='eng' AND s.id NOT IN "
+            "(SELECT b_symbol_id FROM links k JOIN symbols sa ON sa.id=k.a_symbol_id "
+            " WHERE sa.dataset='bliss-bciav')", (slug,)
+        ).fetchall()
+        n = 0
+        for norm, sid in ext_rows:
+            # ConceptNet expansions of THIS external label (either direction)
+            hits = {r[0] for r in cur.execute(
+                "SELECT other FROM conceptnet_edges WHERE lemma=? AND relation IN ('Synonym','SimilarTo')",
+                (norm,))}
+            hits |= {r[0] for r in cur.execute(
+                "SELECT lemma FROM conceptnet_edges WHERE other=? AND relation IN ('Synonym','SimilarTo')",
+                (norm,))}
+            hits &= bliss_norms
+            if not hits:
+                continue
+            ants = {r[0] for r in cur.execute(
+                "SELECT other FROM conceptnet_edges WHERE lemma=? AND relation='Antonym'", (norm,))}
+            ants |= {r[0] for r in cur.execute(
+                "SELECT lemma FROM conceptnet_edges WHERE other=? AND relation='Antonym'", (norm,))}
+            hits -= ants
+            if not hits:
+                continue
+            # prefer the shortest expansion (simplest concept)
+            best = min(hits, key=len)
+            bid = bliss_symbol(best)
+            if bid:
+                cur.execute("INSERT OR IGNORE INTO links VALUES (?,?,?,?)",
+                            (bid, sid, "cn-synonym-en", 0.5))
+                n += 1
+        conn.commit()
+        total_new += n
+        print(f"{slug}: +{n} cn-synonym links")
+    print(f"link2 done: {total_new} new links")
+
+
+def wsd(word: str) -> None:
+    """Sense evidence for a lemma, grouped by WordNet sense tag."""
+    conn = connect()
+    rows = conn.execute(
+        "SELECT relation, lemma, sense_a, other, sense_b, weight FROM conceptnet_edges "
+        "WHERE (lemma=? OR other=?) AND relation IN ('HasContext','IsA','SimilarTo','Synonym','DerivedFrom') "
+        "ORDER BY weight DESC LIMIT 60", (word, word)).fetchall()
+    if not rows:
+        print(f"no sense evidence for '{word}'")
+        return
+    groups = {}
+    for rel, a, sa, b, sb, w in rows:
+        key = sa or (sb if b == word else sa) or "(base)"
+        groups.setdefault(key, []).append(f"{rel} {a if a!=word else b} ({w:.1f})")
+    print(f"sense evidence for '{word}':")
+    for sense, evs in sorted(groups.items(), key=lambda kv: -len(kv[1])):
+        print(f"  [{sense or 'base'}]")
+        for e in evs[:4]:
+            print(f"    {e}")
+
+
 # ------------------------------------------------------------------------- queries
 def search(word: str) -> None:
     conn = connect()
@@ -382,6 +485,12 @@ def main() -> None:
         conn = connect()
         link(conn)
         conn.close()
+    elif cmd == "link2":
+        conn = connect()
+        link2(conn)
+        conn.close()
+    elif cmd == "wsd" and len(sys.argv) > 2:
+        wsd(sys.argv[2])
     elif cmd == "search" and len(sys.argv) > 2:
         search(sys.argv[2])
     elif cmd == "linked" and len(sys.argv) > 2:

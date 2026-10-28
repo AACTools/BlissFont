@@ -52,7 +52,7 @@ let db = null;
 async function init() {
   const t0 = performance.now();
   const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
-  const res = await fetch('data/web/bliss_resolver.bin');
+  const res = await fetch('data/web/bliss_resolver.bin?v=20261028-2');
   const bytes = await res.arrayBuffer();
   db = new SQL.Database(new Uint8Array(bytes));
   const n = db.exec("SELECT COUNT(*) FROM symbols")[0].values[0][0];
@@ -106,12 +106,20 @@ function semanticSearch(q) {
   // query vector = mean of the words we have vectors for
   const words = q.split(' ');
   const acc = new Float32Array(DIM); let n = 0;
-  for (const w of words) {
+  const addWord = (w) => {
     const r = db.exec("SELECT vec FROM word_vecs WHERE word = ?", [w]);
-    if (!r.length) continue;
+    if (!r.length) return false;
     const v = blobVec(r[0].values[0][0]);
     for (let d = 0; d < DIM; d++) acc[d] += v[d];
-    n++;
+    return true;
+  };
+  for (const w of words) { if (addWord(w)) n++; }
+  // last resort: de-compound an unknown single word ("toothache" -> tooth+ache)
+  if (!n && !words[0].includes(' ') && words[0].length > 5) {
+    const w = words[0];
+    for (let i = 3; i <= w.length - 3; i++) {
+      if (addWord(w.slice(0, i)) && addWord(w.slice(i))) { n = 2; break; }
+    }
   }
   if (!n) return null;
   for (let d = 0; d < DIM; d++) acc[d] /= n;

@@ -62,7 +62,8 @@ def main() -> None:
         CREATE INDEX idx_deriv_parent ON derivations(parent_key);
         CREATE TABLE links (
             bliss_key TEXT, dataset TEXT, external_key TEXT, method TEXT, score REAL,
-            url TEXT
+            url TEXT,
+            img_url TEXT        -- GlobalSymbols image URL (pointer; art stays on their CDN)
         );
         CREATE INDEX idx_links_bliss ON links(bliss_key);
         -- semantic layer: cosine fallback for OOV queries (float16 blobs)
@@ -107,13 +108,21 @@ def main() -> None:
         dst.execute("INSERT INTO derivations VALUES (?,?,?)", (r["pk"], r["ck"], r["component_gloss"]))
         n_der += 1
     for r in src.execute(
-        "SELECT sa.key AS bliss_key, sb.dataset AS ds, sb.key AS ek, k.method, k.score "
+        "SELECT sa.key AS bliss_key, sb.dataset AS ds, sb.key AS ek, k.method, k.score, "
+        "sb.extra AS ext_extra "
         "FROM links k JOIN symbols sa ON sa.id = k.a_symbol_id "
         "JOIN symbols sb ON sb.id = k.b_symbol_id "
         "WHERE sa.dataset='bliss-bciav'"
     ):
         url = GS_SYMBOL_URL.format(slug=r["ds"], key=r["ek"]) if r["ds"] != "bliss-bciav" else None
-        dst.execute("INSERT INTO links VALUES (?,?,?,?,?,?)", (r["bliss_key"], r["ds"], r["ek"], r["method"], r["score"], url))
+        img = None
+        if r["ds"] != "bliss-bciav":
+            try:
+                img = (json.loads(r["ext_extra"] or "{}") or {}).get("image_url")
+            except json.JSONDecodeError:
+                img = None
+        dst.execute("INSERT INTO links VALUES (?,?,?,?,?,?,?)",
+                    (r["bliss_key"], r["ds"], r["ek"], r["method"], r["score"], url, img))
         n_link += 1
 
     dst.executemany(

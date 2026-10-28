@@ -2005,7 +2005,7 @@
           });
         }
         const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
-        const res = await fetch('data/web/bliss_resolver.bin');
+        const res = await fetch('data/web/bliss_resolver.bin?v=20261028-2');
         if (!res.ok) throw new Error(`resolver db ${res.status}`);
         hubDb = new SQL.Database(new Uint8Array(await res.arrayBuffer()));
         const n = hubDb.exec("SELECT COUNT(*) FROM symbols")[0].values[0][0];
@@ -2042,12 +2042,21 @@
 
     function hubSemantic(q) {
       const acc = new Float32Array(HUB_DIM); let n = 0;
-      for (const w of q.split(' ')) {
+      const addWord = (w) => {
         const r = hubDb.exec("SELECT vec FROM word_vecs WHERE word = ?", [w]);
-        if (!r.length) continue;
+        if (!r.length) return false;
         const v = hubVec(r[0].values[0][0]);
         for (let d = 0; d < HUB_DIM; d++) acc[d] += v[d];
-        n++;
+        return true;
+      };
+      const words = q.split(' ');
+      for (const w of words) { if (addWord(w)) n++; }
+      // last resort: de-compound an unknown single word ("toothache" -> tooth+ache)
+      if (!n && words.length === 1 && words[0].length > 5) {
+        const w = words[0];
+        for (let i = 3; i <= w.length - 3; i++) {
+          if (addWord(w.slice(0, i)) && addWord(w.slice(i))) { n = 2; break; }
+        }
       }
       if (!n) return null;
       for (let d = 0; d < HUB_DIM; d++) acc[d] /= n;

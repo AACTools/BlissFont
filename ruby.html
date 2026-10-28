@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Symbolic Web demo — ruby + lang=zbl + your preferred symbol set</title>
+<style>
+  :root { color-scheme: dark; }
+  @font-face {
+    font-family: 'BlissaryFont';
+    src: url('data/processed/BlissaryFont-Regular.woff2') format('woff2');
+    font-display: swap;
+  }
+  body { font: 16px/1.7 system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 24px; }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 2px; }
+  p.sub { color: #8b949e; font-size: 13.5px; margin-top: 0; }
+  textarea { width: 100%; min-height: 90px; background: #161b22; color: #e6edf3;
+             border: 1px solid #30363d; border-radius: 6px; padding: 10px; font: inherit; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0 18px; }
+  button { padding: 8px 14px; background: #238636; color: #fff; border: 0; border-radius: 6px;
+           font-size: 14px; cursor: pointer; }
+  button.secondary { background: #21262d; border: 1px solid #30363d; color: #e6edf3; }
+  label { font-size: 13px; color: #8b949e; }
+  select { background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 6px; }
+
+  /* ---- the ruby demo surface ---- */
+  .reading { font-size: 20px; line-height: 2.4; background: #161b22; border: 1px solid #30363d;
+             border-radius: 8px; padding: 22px 26px; }
+  ruby { ruby-position: over; }
+  ruby rt { color: #8b949e; font-size: 12px; letter-spacing: 0; }
+  ruby rt.bliss-gloss { color: #58a6ff; }
+  .bliss-glyph { font-family: 'BlissaryFont', sans-serif; font-size: 30px; }
+  .ext-symbol { height: 34px; vertical-align: middle; }
+  .unresolved { opacity: 0.45; }
+
+  /* display modes — the WAI-Adapt "user preference" model */
+  body[data-mode="text"]      ruby rt { display: none; }
+  body[data-mode="symbols"]   .base-text { display: none; }
+  body[data-mode="both"]      ruby rt, body[data-mode="both"] .base-text { display: inline; }
+  body[data-mode="bliss-only"] .base-text { display: none; }
+  .stats { color: #8b949e; font-size: 13px; margin-top: 12px; }
+  .stats b { color: #e6edf3; }
+</style>
+</head>
+<body data-mode="both">
+<main>
+  <h1>Symbolic web, today — &lt;ruby lang="zbl"&gt; + your preferred symbol set</h1>
+  <p class="sub">A working sketch of the post-workshop WAI-Adapt direction (matatk/Samsung):
+     author once in English, annotate each word with a Bliss concept from the BCI-AV registry,
+     then let the <b>reader</b> choose symbols-above / text-only / symbols-only — and switch
+     symbol <b>sets</b> (Bliss glyphs vs ARASAAC/Mulberry art via GlobalSymbols links).
+     Everything runs client-side: SQLite-WASM resolver + webfont. No server, no API keys.</p>
+
+  <textarea id="input">So she was considering in her own mind, as well as she could, for the hot day made her feel very sleepy and stupid, whether the pleasure of making a daisy-chain would be worth the trouble of getting up and picking the daisies.</textarea>
+
+  <div class="controls">
+    <button onclick="render()">Annotate</button>
+    <label>display
+      <select id="mode" onchange="document.body.dataset.mode=this.value">
+        <option value="both">symbols above text</option>
+        <option value="text">text only</option>
+        <option value="symbols">symbols only</option>
+      </select>
+    </label>
+    <label>symbol set
+      <select id="set" onchange="render()">
+        <option value="bliss">Bliss (webfont)</option>
+        <option value="arasaac">ARASAAC (via GlobalSymbols)</option>
+        <option value="mulberry">Mulberry (via GlobalSymbols)</option>
+      </select>
+    </label>
+    <span id="status" class="stats"></span>
+  </div>
+
+  <div class="reading" id="output">press Annotate…</div>
+  <p class="stats" id="stats"></p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+<script>
+let db = null;
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+async function init() {
+  const status = document.getElementById('status');
+  status.textContent = 'loading resolver (~11 MB gzipped)…';
+  const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
+  const res = await fetch('data/web/bliss_resolver.bin?v=20261028-2');
+  db = new SQL.Database(new Uint8Array(await res.arrayBuffer()));
+  status.textContent = 'ready';
+  render();
+}
+
+// word -> {bci, pua, gloss} via staged lookup: exact label -> prefix -> head word
+function lookup(word) {
+  const q = norm(word);
+  if (!q) return null;
+  const go = (term, sql, args) => {
+    const r = db.exec(sql, args);
+    return r.length ? r[0].values[0] : null;
+  };
+  const COLS = `SELECT s.key, s.pua_stable, s.gloss_en, s.pos FROM labels l
+                JOIN symbols s ON s.key = l.symbol_key
+                WHERE l.lang='en' AND l.norm = ? LIMIT 1`;
+  let row = go(q, COLS, [q]);
+  if (!row) row = go(q + 's', COLS, [q + 's']);
+  if (!row) row = go(q.replace(/e?s$/, ''), COLS, [q.replace(/e?s$/, '')]);
+  if (!row) {
+    const r = db.exec(`SELECT s.key, s.pua_stable, s.gloss_en, s.pos FROM labels l
+                       JOIN symbols s ON s.key = l.symbol_key
+                       WHERE l.lang='en' AND l.norm LIKE ?
+                       ORDER BY LENGTH(l.norm) LIMIT 1`, [q + '%']);
+    row = r.length ? r[0].values[0] : null;
+  }
+  if (!row) return null;
+  return { bci: row[0], pua: row[1], gloss: row[2], pos: row[3] };
+}
+
+const imgCache = new Map();
+async function externalImage(bci, set) {
+  if (imgCache.has(bci)) return imgCache.get(bci);
+  const r = db.exec(
+    `SELECT img_url FROM links WHERE bliss_key=? AND dataset=? AND img_url IS NOT NULL
+     ORDER BY CASE WHEN method LIKE 'label-exact%' THEN 0 ELSE 1 END, score DESC LIMIT 1`,
+    [bci, set]);
+  const img = r.length ? r[0].values[0][0] : null;
+  imgCache.set(bci, img);
+  return img;
+}
+
+async function render() {
+  if (!db) return;
+  const text = document.getElementById('input').value;
+  const set = document.getElementById('set').value;
+  const out = document.getElementById('output');
+  const stats = document.getElementById('stats');
+  const words = text.split(/(\s+)/);
+  let n = 0, hit = 0, extHit = 0;
+  const parts = [];
+  const jobs = [];
+  for (const w of words) {
+    if (!w.trim()) { parts.push(' '); continue; }
+    const lead = w.match(/^[^\w]+/)?.[0] ?? '';
+    const trail = w.match(/[^\w]+$/)?.[0] ?? '';
+    const core = w.slice(lead.length, w.length - trail.length || undefined);
+    const found = core ? lookup(core) : null;
+    n++;
+    if (!found) {
+      parts.push({ html: esc(lead + w + trail) });
+      continue;
+    }
+    hit++;
+    const idx = parts.length;
+    parts.push({ pending: true, lead: esc(lead), trail: esc(trail), found });
+    jobs.push((async () => {
+      let inner;
+      if (set === 'bliss') {
+        const ch = found.pua ? String.fromCodePoint(parseInt(found.pua.slice(2), 16)) : '';
+        inner = `<span class="bliss-glyph" lang="zbl">${ch}</span>`;
+      } else {
+        const img = await externalImage(found.bci, set);
+        if (img) { extHit++; inner = `<img class="ext-symbol" src="${esc(img)}" alt="${esc(found.gloss)}" title="${esc(found.gloss)} (ARASAAC-style art hotlinked from GlobalSymbols)">`; }
+        else {
+          const ch = found.pua ? String.fromCodePoint(parseInt(found.pua.slice(2), 16)) : '';
+          inner = `<span class="bliss-glyph unresolved" lang="zbl" title="no ${set} link — falling back to Bliss">${ch}</span>`;
+        }
+      }
+      parts[idx] = { html:
+        `${parts[idx].lead}<ruby lang="zbl"><rt>${inner}</rt><span class="base-text">${esc(core)}</span></ruby>${parts[idx].trail}` };
+    })());
+  }
+  await Promise.all(jobs);
+  out.innerHTML = parts.map(p => p.html).join('');
+  stats.innerHTML = `words: <b>${n}</b> · annotated: <b>${hit}</b> (${(100*hit/n).toFixed(0)}%)` +
+    (set !== 'bliss' ? ` · ${set} art available for <b>${extHit}</b> of those (rest fall back to Bliss — the coverage gap is the demo)` : '');
+}
+
+init().catch(e => { document.getElementById('status').textContent = 'error: ' + e; });
+</script>
+</body>
+</html>
