@@ -25,20 +25,22 @@
   select { background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; padding: 6px; }
 
   /* ---- the ruby demo surface ---- */
-  .reading { font-size: 20px; line-height: 2.4; background: #161b22; border: 1px solid #30363d;
+  /* Native ruby interlinear layout fights oversized glyphs (annotation dips
+     into the base line), so each ruby is forced into a two-row stack while
+     keeping <ruby>/<rt> semantics for AT and the WAI-Adapt model. */
+  .reading { font-size: 20px; line-height: 2.8; background: #161b22; border: 1px solid #30363d;
              border-radius: 8px; padding: 22px 26px; }
-  ruby { ruby-position: over; }
-  ruby rt { color: #8b949e; font-size: 12px; letter-spacing: 0; }
-  ruby rt.bliss-gloss { color: #58a6ff; }
-  .bliss-glyph { font-family: 'BlissaryFont', sans-serif; font-size: 30px; }
-  .ext-symbol { height: 34px; vertical-align: middle; }
+  ruby { display: inline-flex; flex-direction: column-reverse; align-items: center;
+         vertical-align: middle; }
+  ruby rt { display: block; color: #8b949e; font-size: 12px; padding-bottom: 3px; }
+  ruby .base-text { display: block; }
+  .bliss-glyph { font-family: 'BlissaryFont', sans-serif; font-size: 26px; }
+  .ext-symbol { height: 28px; vertical-align: middle; }
   .unresolved { opacity: 0.45; }
 
   /* display modes — the WAI-Adapt "user preference" model */
   body[data-mode="text"]      ruby rt { display: none; }
   body[data-mode="symbols"]   .base-text { display: none; }
-  body[data-mode="both"]      ruby rt, body[data-mode="both"] .base-text { display: inline; }
-  body[data-mode="bliss-only"] .base-text { display: none; }
   .stats { color: #8b949e; font-size: 13px; margin-top: 12px; }
   .stats b { color: #e6edf3; }
 </style>
@@ -168,7 +170,7 @@ async function render() {
         }
       }
       parts[idx] = { html:
-        `${parts[idx].lead}<ruby lang="zbl"><rt>${inner}</rt><span class="base-text">${esc(core)}</span></ruby>${parts[idx].trail}` };
+        `${parts[idx].lead}<ruby lang="zbl"><span class="base-text">${esc(core)}</span><rt>${inner}</rt></ruby>${parts[idx].trail}` };
     })());
   }
   await Promise.all(jobs);
