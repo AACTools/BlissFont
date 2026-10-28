@@ -11,10 +11,9 @@ What goes in (deliberately):
   - cross-set links as **ID pointers only** (dataset + external key), so a
     client can deep-link to e.g. globalsymbols.com/symbolsets/arasaac/symbols/14449
     WITHOUT redistributing ARASAAC's CC BY-NC-SA label text. NC text stays out.
-  - SEMANTIC LAYER: per-symbol 50d GloVe mean vectors (~0.6 MB) + word vectors
-    for the 30k most frequent English words plus every label word (~3 MB), so
-    out-of-vocabulary queries fall back to cosine similarity instead of
-    returning nothing.
+  - SEMANTIC LAYER: per-symbol 50d GloVe mean vectors plus the full 100k-word
+    vector vocab (float16, ~11 MB) so out-of-vocabulary queries fall back to
+    cosine similarity instead of returning nothing.
 
 What stays out:
   - external label text, image URLs (licences + weight)
@@ -66,15 +65,15 @@ def main() -> None:
             url TEXT
         );
         CREATE INDEX idx_links_bliss ON links(bliss_key);
-        -- semantic layer: cosine fallback for OOV queries
+        -- semantic layer: cosine fallback for OOV queries (float16 blobs)
         CREATE TABLE symbol_vecs (
             symbol_key TEXT PRIMARY KEY, dim INTEGER,
-            vec BLOB,          -- float32 little-endian
+            vec BLOB,          -- float16 little-endian
             coverage INTEGER
         );
         CREATE TABLE word_vecs (
             word TEXT PRIMARY KEY,
-            vec BLOB           -- float32 little-endian
+            vec BLOB           -- float16 little-endian (full 100k GloVe vocab)
         );
         """
     )
@@ -149,6 +148,10 @@ def main() -> None:
             off = i * DIM * 2
             return struct.unpack(f"<{DIM}e", vraw[off:off + DIM * 2])
 
+        def pack_f16(values):
+            # store half-precision: 100k words x 50d = 10 MB instead of 20 MB
+            return struct.pack(f"<{DIM}e", *values)
+
         STOP = {
             "to", "the", "a", "an", "of", "and", "or", "in", "on", "at", "for",
             "with", "used", "use", "form", "mark", "marker", "symbol",
@@ -184,18 +187,18 @@ def main() -> None:
                     acc[d] /= n
                 dst.execute(
                     "INSERT INTO symbol_vecs VALUES (?,?,?,?)",
-                    (r["key"], DIM, struct.pack(f"<{DIM}f", *acc), n),
+                    (r["key"], DIM, pack_f16(acc), n),
                 )
                 n_symvec += 1
             label_words.update(words)
-        # word vectors: top 30k frequent + every English label word
-        wanted = set(vocab[:30000]) | {w for w in label_words if w in vindex}
-        for w in sorted(wanted):
+        # word vectors: the FULL GloVe vocab (covers rare queries like 'cog'
+        # at rank 41k or 'toothache' at 87k), stored as float16
+        for w in vocab:
             v = wvec(w)
             if v:
                 dst.execute(
                     "INSERT INTO word_vecs VALUES (?,?)",
-                    (w, struct.pack(f"<{DIM}f", *v)),
+                    (w, pack_f16(v)),
                 )
                 n_wordvec += 1
         print(f"semantic layer: {n_symvec} symbol vectors, {n_wordvec} word vectors")
