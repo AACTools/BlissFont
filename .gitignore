@@ -17,3 +17,7 @@ data/raw/
 *.db
 *.sqlite
 *.sqlite3
+# Bench-quality vector db (115 MB, over GitHub's limit) — regenerate with:
+#   uv run python scripts/build_vector_db.py --dim 300 --words 200000
+data/processed/vectors300.bin
+data/processed/vocab300.txt

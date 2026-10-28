@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bliss Resolver — symbol hub running entirely in your browser (SQLite WASM)</title>
+<style>
+  :root { color-scheme: dark; }
+  @font-face {
+    font-family: 'BlissaryFont';
+    src: url('data/processed/BlissaryFont-Regular.woff2') format('woff2');
+    font-display: swap;
+  }
+  body { font: 15px/1.5 system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 24px; }
+  main { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 20px; } p.sub { color: #8b949e; margin-top: -8px; }
+  #status { font-size: 13px; color: #8b949e; margin-bottom: 14px; }
+  #search { width: 320px; padding: 8px 10px; font-size: 15px; background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 6px; }
+  button { padding: 8px 12px; background: #238636; color: #fff; border: 0; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .hint { color: #8b949e; font-size: 13px; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid #21262d; font-size: 14px; vertical-align: top; }
+  th { color: #8b949e; font-weight: 600; }
+  .glyph { font-family: 'BlissaryFont', 'BlissFont', sans-serif; font-size: 26px; line-height: 1; }
+  a { color: #58a6ff; text-decoration: none; } a:hover { text-decoration: underline; }
+  .tag { display: inline-block; background: #21262d; border-radius: 10px; padding: 0 8px; font-size: 12px; color: #8b949e; margin-right: 4px; }
+  code { background: #161b22; padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Bliss Resolver — the symbol hub, running entirely client-side</h1>
+  <p class="sub">SQLite compiled to WebAssembly + a single ~MB <code>bliss_resolver.db</code>.
+  No server, no API calls after page load; external links are ID pointers to GlobalSymbols.
+  This is the same asset a browser extension or offline AAC tool would embed.</p>
+  <div id="status">loading sql.js and the database…</div>
+  <div class="row">
+    <input id="search" placeholder="English word (or any language)…" value="dentist">
+    <button onclick="doSearch()">Search</button>
+    <span class="hint">try: dentist · bank · heart · tandläkare · Zahnarzt</span>
+  </div>
+  <div id="results"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+<script>
+let db = null;
+
+async function init() {
+  const t0 = performance.now();
+  const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
+  const res = await fetch('data/web/bliss_resolver.db');
+  const bytes = await res.arrayBuffer();
+  db = new SQL.Database(new Uint8Array(bytes));
+  const n = db.exec("SELECT COUNT(*) FROM symbols")[0].values[0][0];
+  const langs = db.exec("SELECT COUNT(DISTINCT lang) FROM labels")[0].values[0][0];
+  document.getElementById('status').textContent =
+    `ready: ${n.toLocaleString()} symbols, ${langs} languages, loaded in ${(performance.now() - t0).toFixed(0)} ms — all queries below run locally in WASM.`;
+  doSearch();
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+function doSearch() {
+  const q = norm(document.getElementById('search').value);
+  const out = document.getElementById('results');
+  if (!q) return;
+  const rows = db.exec(
+    `SELECT s.key, s.gloss_en, s.pos, s.pua_stable, s.blissary_code, l.lang, l.text
+     FROM labels l JOIN symbols s ON s.key = l.symbol_key
+     WHERE l.norm = ? OR l.norm LIKE ?
+     ORDER BY CASE WHEN l.norm = ? THEN 0 ELSE 1 END, s.gloss_en
+     LIMIT 12`, [q, q + ' %', q]);
+  if (!rows.length) { out.innerHTML = '<p class="hint">no matches</p>'; return; }
+  const seen = new Set();
+  let html = '<table><tr><th>glyph</th><th>id / gloss</th><th>matched label</th><th>codes</th></tr>';
+  for (const [key, gloss, pos, pua, bcode, lang, text] of rows[0].values) {
+    if (seen.has(key)) continue; seen.add(key);
+    const cp = pua ? String.fromCodePoint(parseInt(pua.slice(2), 16)) : '';
+    html += `<tr style="cursor:pointer" onclick="detail('${key}')">
+      <td class="glyph">${cp}</td>
+      <td><b>${esc(gloss)}</b><br><span class="tag">${esc(key)}</span><span class="tag">${esc(pos || '')}</span></td>
+      <td>${esc(lang)}: ${esc(text)}</td>
+      <td class="hint">${esc(pua || '')}${bcode ? '<br>' + esc(bcode) : ''}</td></tr>`;
+  }
+  out.innerHTML = html + '</table><p class="hint">click a row for derivations + cross-set links</p>';
+}
+
+function detail(key) {
+  let html = '';
+  const d = db.exec(
+    `SELECT component_key, component_gloss FROM derivations WHERE parent_key = ?`, [key]);
+  if (d.length) {
+    html += '<p><b>derivation:</b> ' + d[0].values.map(([ck, cg]) =>
+      `<span class="tag" style="cursor:pointer" onclick="detail('${ck}')">${esc(cg || ck)}</span>`).join(' + ') + '</p>';
+  }
+  const l = db.exec(
+    `SELECT dataset, external_key, method, score, url FROM links WHERE bliss_key = ? LIMIT 15`, [key]);
+  if (l.length) {
+    html += '<p><b>same concept in other sets:</b></p><table>' +
+      l[0].values.map(([ds, ek, m, sc, url]) =>
+        `<tr><td>${esc(ds)}</td><td>${url ? `<a href="${esc(url)}" target="_blank">${esc(ek)} ↗</a>` : esc(ek)}</td><td class="hint">${esc(m)} ${sc}</td></tr>`).join('') +
+      '</table>';
+  } else {
+    html += '<p class="hint">no cross-set links yet for this symbol</p>';
+  }
+  document.getElementById('results').insertAdjacentHTML('beforeend', html);
+}
+
+init().catch(e => { document.getElementById('status').textContent = 'error: ' + e; });
+</script>
+</body>
+</html>

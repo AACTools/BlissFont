@@ -53,12 +53,19 @@ BlissFont/
 │       ├── BlissFont-*.otf   # Outline font weights (Regular, SemiBold, Bold)
 │       ├── BlissFont-*.woff2 # Web-ready outline font weights
 │       ├── BlissaryFont-*.otf# Stroke-based font weights
+│       ├── bliss_semantic.db # Semantic DB: derivation graph + GloVe vectors + FTS
+│       ├── symbol_hub.db     # Multi-set hub: Bliss + ARASAAC/Mulberry labels + links
 │       └── Unibliss.txt      # Custom Unicode character property database
 └── scripts/
     ├── download_data.py      # Scrapes and extracts the 2025 BCI SVGs and metadata
     ├── map_unicode.py        # Parses Unicode proposal and overrides indicator codes
     ├── build_font.py         # Compiles outline fonts & calculates GPOS anchors
-    └── build_blissary_font.py# Compiles stroke-based fonts & calculates GPOS anchors
+    ├── build_blissary_font.py# Compiles stroke-based fonts & calculates GPOS anchors
+    ├── integrate_crosswalk.py# Joins hlridge/bliss-blissary-bci-id-map ids to records
+    ├── merge_all_languages.py # Merges all 19 xlsx languages + WinBliss into the JSON
+    ├── build_semantic_db.py  # Builds bliss_semantic.db (relations, vectors, FTS)
+    ├── build_symbol_hub.py   # Multi-set hub: Bliss + GlobalSymbols sets (ARASAAC, ...)
+    └── fix_legacy_cmap_overflow.py # Strips legacy-PUA overflow from compiled fonts
 ```
 
 ---
