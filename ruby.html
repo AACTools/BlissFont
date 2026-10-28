@@ -143,14 +143,15 @@ async function render() {
   const parts = [];
   const jobs = [];
   for (const w of words) {
-    if (!w.trim()) { parts.push(' '); continue; }
+    if (!w.trim()) { parts.push({ html: ' ' }); continue; }
     const lead = w.match(/^[^\w]+/)?.[0] ?? '';
     const trail = w.match(/[^\w]+$/)?.[0] ?? '';
-    const core = w.slice(lead.length, w.length - trail.length || undefined);
-    const found = core ? lookup(core) : null;
+    const core = w.slice(lead.length, w.length - trail.length);
+    const found = core && lookup(core);
     n++;
     if (!found) {
-      parts.push({ html: esc(lead + w + trail) });
+      // emit the original token (lead+core+trail === w when nothing found)
+      parts.push({ html: esc(w) });
       continue;
     }
     hit++;
