@@ -31,9 +31,11 @@
 <body>
 <main>
   <h1>Bliss Resolver — the symbol hub, running entirely client-side</h1>
-  <p class="sub">SQLite compiled to WebAssembly + an ~11 MB <code>bliss_resolver.bin</code> (≈5 MB gzipped).
-  No server, no API calls after page load; external links are ID pointers to GlobalSymbols.
-  This is the same asset a browser extension or offline AAC tool would embed.</p>
+  <p class="sub">SQLite compiled to WebAssembly + a 20 MB <code>bliss_resolver.bin</code> (≈9 MB gzipped):
+  labels, derivation graph, cross-set links, and a GloVe semantic layer so unknown
+  words still find symbols by meaning. No server, no API calls after page load; external
+  links are ID pointers to GlobalSymbols. This is the same asset a browser extension or
+  offline AAC tool would embed.</p>
   <div id="status">loading sql.js and the database…</div>
   <div class="row">
     <input id="search" placeholder="English word (or any language)…" value="dentist">
@@ -62,30 +64,87 @@ async function init() {
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const norm = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+const DIM = 50;
+
+// float32 blob -> Float32Array
+function blobVec(blob) {
+  const buf = new Uint8Array(blob).buffer;
+  return new Float32Array(buf);
+}
+function cos(a, b) {
+  let d = 0, na = 0, nb = 0;
+  for (let k = 0; k < a.length; k++) { d += a[k] * b[k]; na += a[k] ** 2; nb += b[k] ** 2; }
+  return d / (Math.sqrt(na) * Math.sqrt(nb) || 1);
+}
+
+const renderRows = (values, note, semantic = false) => {
+  const seen = new Set();
+  let html = `<table><tr><th>glyph</th><th>id / gloss</th><th>${semantic ? 'cosine' : 'matched label'}</th><th>codes</th></tr>`;
+  for (const row of values) {
+    const [key, gloss, pos, pua, bcode, lang, text] = row;
+    if (seen.has(key)) continue; seen.add(key);
+    const cp = pua ? String.fromCodePoint(parseInt(pua.slice(2), 16)) : '';
+    const mid = semantic ? `${text.toFixed(3)}` : `${esc(lang)}: ${esc(text)}`;
+    html += `<tr style="cursor:pointer" onclick="detail('${key}')">
+      <td class="glyph">${cp}</td>
+      <td><b>${esc(gloss)}</b><br><span class="tag">${esc(key)}</span><span class="tag">${esc(pos || '')}</span></td>
+      <td>${mid}</td>
+      <td class="hint">${esc(pua || '')}${bcode ? '<br>' + esc(bcode) : ''}</td></tr>`;
+  }
+  return html + '</table>' + note;
+};
+
+function semanticSearch(q) {
+  // query vector = mean of the words we have vectors for
+  const words = q.split(' ');
+  const acc = new Float32Array(DIM); let n = 0;
+  for (const w of words) {
+    const r = db.exec("SELECT vec FROM word_vecs WHERE word = ?", [w]);
+    if (!r.length) continue;
+    const v = blobVec(r[0].values[0][0]);
+    for (let d = 0; d < DIM; d++) acc[d] += v[d];
+    n++;
+  }
+  if (!n) return null;
+  for (let d = 0; d < DIM; d++) acc[d] /= n;
+  const rows = db.exec(
+    `SELECT v.symbol_key, s.gloss_en, s.pos, s.pua_stable, s.blissary_code, v.vec
+     FROM symbol_vecs v JOIN symbols s ON s.key = v.symbol_key`);
+  if (!rows.length) return null;
+  const scored = [];
+  for (const [key, gloss, pos, pua, bcode, vec] of rows[0].values) {
+    scored.push([cos(acc, blobVec(vec)), key, gloss, pos, pua, bcode]);
+  }
+  scored.sort((a, b) => b[0] - a[0]);
+  return scored.slice(0, 12).map(([s, key, gloss, pos, pua, bcode]) =>
+    [key, gloss, pos, pua, bcode, '', s]);
+}
 
 function doSearch() {
   const q = norm(document.getElementById('search').value);
   const out = document.getElementById('results');
   if (!q) return;
-  const rows = db.exec(
+  const labelQuery = (term) => db.exec(
     `SELECT s.key, s.gloss_en, s.pos, s.pua_stable, s.blissary_code, l.lang, l.text
      FROM labels l JOIN symbols s ON s.key = l.symbol_key
      WHERE l.norm = ? OR l.norm LIKE ?
      ORDER BY CASE WHEN l.norm = ? THEN 0 ELSE 1 END, s.gloss_en
-     LIMIT 12`, [q, q + ' %', q]);
-  if (!rows.length) { out.innerHTML = '<p class="hint">no matches</p>'; return; }
-  const seen = new Set();
-  let html = '<table><tr><th>glyph</th><th>id / gloss</th><th>matched label</th><th>codes</th></tr>';
-  for (const [key, gloss, pos, pua, bcode, lang, text] of rows[0].values) {
-    if (seen.has(key)) continue; seen.add(key);
-    const cp = pua ? String.fromCodePoint(parseInt(pua.slice(2), 16)) : '';
-    html += `<tr style="cursor:pointer" onclick="detail('${key}')">
-      <td class="glyph">${cp}</td>
-      <td><b>${esc(gloss)}</b><br><span class="tag">${esc(key)}</span><span class="tag">${esc(pos || '')}</span></td>
-      <td>${esc(lang)}: ${esc(text)}</td>
-      <td class="hint">${esc(pua || '')}${bcode ? '<br>' + esc(bcode) : ''}</td></tr>`;
+     LIMIT 12`, [term, term + ' %', term]);
+
+  let rows = labelQuery(q);
+  // naive lemma retry: "cars" -> "car", "teeth" stays (irregulars are labels anyway)
+  if (!rows.length && /s$/.test(q) && q.length > 3) rows = labelQuery(q.replace(/e?s$/, ''));
+  if (rows.length) {
+    out.innerHTML = renderRows(rows[0].values, '<p class="hint">click a row for derivations + cross-set links</p>');
+    return;
   }
-  out.innerHTML = html + '</table><p class="hint">click a row for derivations + cross-set links</p>';
+  // semantic fallback: cosine over symbol vectors (OOV words, synonyms)
+  const sem = semanticSearch(q);
+  if (sem) {
+    out.innerHTML = renderRows(sem, '<p class="hint">no literal label match — showing nearest symbols by meaning (GloVe cosine)</p>', true);
+    return;
+  }
+  out.innerHTML = '<p class="hint">no matches</p>';
 }
 
 function detail(key) {

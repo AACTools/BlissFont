@@ -11,10 +11,14 @@ What goes in (deliberately):
   - cross-set links as **ID pointers only** (dataset + external key), so a
     client can deep-link to e.g. globalsymbols.com/symbolsets/arasaac/symbols/14449
     WITHOUT redistributing ARASAAC's CC BY-NC-SA label text. NC text stays out.
+  - SEMANTIC LAYER: per-symbol 50d GloVe mean vectors (~0.6 MB) + word vectors
+    for the 30k most frequent English words plus every label word (~3 MB), so
+    out-of-vocabulary queries fall back to cosine similarity instead of
+    returning nothing.
 
 What stays out:
   - external label text, image URLs (licences + weight)
-  - GloVe vectors (10 MB; the sandbox already ships vectors.bin separately)
+  - the full 100k-word vector db (the sandbox ships that separately as vectors.bin)
 
 Usage:
     uv run python scripts/export_web_asset.py            # -> data/web/bliss_resolver.db
@@ -62,6 +66,16 @@ def main() -> None:
             url TEXT
         );
         CREATE INDEX idx_links_bliss ON links(bliss_key);
+        -- semantic layer: cosine fallback for OOV queries
+        CREATE TABLE symbol_vecs (
+            symbol_key TEXT PRIMARY KEY, dim INTEGER,
+            vec BLOB,          -- float32 little-endian
+            coverage INTEGER
+        );
+        CREATE TABLE word_vecs (
+            word TEXT PRIMARY KEY,
+            vec BLOB           -- float32 little-endian
+        );
         """
     )
 
@@ -112,6 +126,80 @@ def main() -> None:
             ("note", "external links are ID pointers only; no third-party label text embedded"),
         ],
     )
+
+    # ---- semantic layer --------------------------------------------------
+    # 1) per-symbol mean vectors over English gloss words (GloVe 6B.50d)
+    # 2) word vectors for the 30k most frequent words + every label word
+    vocab_path = os.path.join("data", "processed", "vocab.txt")
+    vec_path = os.path.join("data", "processed", "vectors.bin")
+    if os.path.exists(vocab_path) and os.path.exists(vec_path):
+        import struct
+
+        DIM = 50
+        with open(vocab_path, "r", encoding="utf-8") as f:
+            vocab = [w.strip() for w in f]
+        vindex = {w: i for i, w in enumerate(vocab)}
+        with open(vec_path, "rb") as f:
+            vraw = f.read()  # float16 little-endian, row-major
+
+        def wvec(word):
+            i = vindex.get(word)
+            if i is None:
+                return None
+            off = i * DIM * 2
+            return struct.unpack(f"<{DIM}e", vraw[off:off + DIM * 2])
+
+        STOP = {
+            "to", "the", "a", "an", "of", "and", "or", "in", "on", "at", "for",
+            "with", "used", "use", "form", "mark", "marker", "symbol",
+            "multiple", "any", "person", "thing",
+        }
+
+        def gloss_words(gloss):
+            out, seen = [], set()
+            for part in str(gloss or "").lower().replace("(", " ").replace(")", " ").split(","):
+                for w in part.replace("-", " ").replace("_", " ").split():
+                    w = "".join(ch for ch in w if ch.isalpha())
+                    if len(w) > 1 and w not in STOP and w not in seen:
+                        seen.add(w)
+                        out.append(w)
+            return out
+
+        n_symvec = n_wordvec = 0
+        label_words = set()
+        for r in src.execute(
+            "SELECT key, gloss_en FROM symbols WHERE dataset='bliss-bciav'"
+        ):
+            words = gloss_words(r["gloss_en"])[:6]
+            acc = [0.0] * DIM
+            n = 0
+            for w in words:
+                v = wvec(w)
+                if v:
+                    for d in range(DIM):
+                        acc[d] += v[d]
+                    n += 1
+            if n:
+                for d in range(DIM):
+                    acc[d] /= n
+                dst.execute(
+                    "INSERT INTO symbol_vecs VALUES (?,?,?,?)",
+                    (r["key"], DIM, struct.pack(f"<{DIM}f", *acc), n),
+                )
+                n_symvec += 1
+            label_words.update(words)
+        # word vectors: top 30k frequent + every English label word
+        wanted = set(vocab[:30000]) | {w for w in label_words if w in vindex}
+        for w in sorted(wanted):
+            v = wvec(w)
+            if v:
+                dst.execute(
+                    "INSERT INTO word_vecs VALUES (?,?)",
+                    (w, struct.pack(f"<{DIM}f", *v)),
+                )
+                n_wordvec += 1
+        print(f"semantic layer: {n_symvec} symbol vectors, {n_wordvec} word vectors")
+
     dst.commit()
     dst.execute("VACUUM")
     dst.close()
