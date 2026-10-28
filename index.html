@@ -761,6 +761,7 @@
     <button class="tab-btn" id="tab-ins-btn">Glyph Inspector</button>
     <button class="tab-btn" id="tab-dl-btn">Download & Install</button>
     <button class="tab-btn" id="tab-hub-btn">Symbol Hub (Resolver)</button>
+    <button class="tab-btn" id="tab-ruby-btn">Symbolic Web (Ruby)</button>
   </div>
 
   <!-- TAB 1: Directory -->
@@ -1114,6 +1115,19 @@
     </div>
   </div>
 
+  <!-- TAB 6: Symbolic Web (ruby) demo -->
+  <div class="tab-content" id="tab-ruby">
+    <div class="sandbox-panel">
+      <div class="sandbox-label">Symbolic web — &lt;ruby lang="zbl"&gt; annotation with switchable symbol sets</div>
+      <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 10px 0;">
+        The WAI-Adapt direction as a working demo: annotate English word-by-word with BCI concepts,
+        then switch display mode and symbol set (Bliss webfont ↔ ARASAAC/Mulberry via GlobalSymbols).
+        Runs in the frame below — or <a href="ruby.html" style="color: var(--primary-color);">standalone ↗</a>
+      </p>
+      <iframe id="ruby-frame" title="Symbolic web demo" style="width: 100%; height: 640px; border: 1px solid var(--border-color); border-radius: 8px; background: #0d1117;"></iframe>
+    </div>
+  </div>
+
   <script>
     let allRecords = [];
     const grid = document.getElementById('grid');
@@ -1148,6 +1162,8 @@
     const tabDl = document.getElementById('tab-dl');
     const tabHubBtn = document.getElementById('tab-hub-btn');
     const tabHub = document.getElementById('tab-hub');
+    const tabRubyBtn = document.getElementById('tab-ruby-btn');
+    const tabRuby = document.getElementById('tab-ruby');
 
     tabDirBtn.addEventListener('click', () => {
       tabDirBtn.classList.add('active');
@@ -1155,12 +1171,14 @@
       tabInsBtn.classList.remove('active');
       tabDlBtn.classList.remove('active');
       tabHubBtn.classList.remove('active');
+      tabRubyBtn.classList.remove('active');
 
       tabDir.classList.add('active');
       tabKbd.classList.remove('active');
       tabIns.classList.remove('active');
       tabDl.classList.remove('active');
       tabHub.classList.remove('active');
+      tabRuby.classList.remove('active');
     });
 
     tabKbdBtn.addEventListener('click', () => {
@@ -1169,12 +1187,14 @@
       tabInsBtn.classList.remove('active');
       tabDlBtn.classList.remove('active');
       tabHubBtn.classList.remove('active');
+      tabRubyBtn.classList.remove('active');
 
       tabKbd.classList.add('active');
       tabDir.classList.remove('active');
       tabIns.classList.remove('active');
       tabDl.classList.remove('active');
       tabHub.classList.remove('active');
+      tabRuby.classList.remove('active');
       renderKeyboard();
     });
 
@@ -1184,12 +1204,14 @@
       tabKbdBtn.classList.remove('active');
       tabDlBtn.classList.remove('active');
       tabHubBtn.classList.remove('active');
+      tabRubyBtn.classList.remove('active');
 
       tabIns.classList.add('active');
       tabDir.classList.remove('active');
       tabKbd.classList.remove('active');
       tabDl.classList.remove('active');
       tabHub.classList.remove('active');
+      tabRuby.classList.remove('active');
       initInspector();
     });
 
@@ -1199,12 +1221,14 @@
       tabKbdBtn.classList.remove('active');
       tabInsBtn.classList.remove('active');
       tabHubBtn.classList.remove('active');
+      tabRubyBtn.classList.remove('active');
 
       tabDl.classList.add('active');
       tabDir.classList.remove('active');
       tabKbd.classList.remove('active');
       tabIns.classList.remove('active');
       tabHub.classList.remove('active');
+      tabRuby.classList.remove('active');
     });
 
     tabHubBtn.addEventListener('click', () => {
@@ -1220,6 +1244,24 @@
       tabIns.classList.remove('active');
       tabDl.classList.remove('active');
       hubLazyInit();
+    });
+
+    tabRubyBtn.addEventListener('click', () => {
+      tabRubyBtn.classList.add('active');
+      tabDirBtn.classList.remove('active');
+      tabKbdBtn.classList.remove('active');
+      tabInsBtn.classList.remove('active');
+      tabDlBtn.classList.remove('active');
+      tabHubBtn.classList.remove('active');
+
+      tabRuby.classList.add('active');
+      tabDir.classList.remove('active');
+      tabKbd.classList.remove('active');
+      tabIns.classList.remove('active');
+      tabDl.classList.remove('active');
+      tabHub.classList.remove('active');
+      const frame = document.getElementById('ruby-frame');
+      if (frame && !frame.src) frame.src = 'ruby.html';
     });
 
     // Check if Font loaded successfully

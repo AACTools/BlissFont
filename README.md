@@ -1,131 +1,55 @@
-# BlissFont — OpenType Font Engineering for Blissymbolics
+# BlissFont
 
-This project focuses on the digitization, OpenType font engineering, data parsing, and metadata compiler for Blissymbolics. It compiles vector graphics and layout rules for the **BCI Authorized Vocabulary of Blissymbolics (BCI-AV) 2025-02-15 Release** containing 6,183 active symbols.
+BCI-AV → real fonts. Compiles the [BCI-AV 2025-02-15] release (6,183 symbols,
+6,419 glyph records) into OpenType/WOFF2 with GPOS-anchored grammar indicators.
 
----
+**Live:** https://aactools.github.io/BlissFont/ — sandbox, inspector, symbol hub,
+symbolic-web (ruby) demo, downloads.
+Pair repo: [BlissNLP](https://github.com/AACTools/BlissNLP) (English→Bliss pipeline).
 
-## 📖 How It Works (For Laypersons)
-
-Think of sheet music. When you read a musical score, you have the main notes, and you have small marks above or below them (like sharps, flats, or accent dots) that tell the musician how to play that note. 
-
-**Blissymbolics** works exactly like sheet music. It is a visual language made of base pictures (like a "heart" for emotion, or "legs" for movement). To turn these pictures into actions (verbs), past tense, or plurals, we place small grammatical marks (called **indicators**) directly above or below the base symbols.
-
-To make this work on computers and websites, this repository builds the **digital typeface (the font)**:
-1. **The Font File (WOFF2/OTF)**: Contains all 6,000+ drawings and indicators.
-2. **Invisible Layout Instructions (GPOS)**: Contains mathematical "magnets." When a web browser sees a base symbol followed by a grammar indicator, the font automatically snaps the indicator to the exact top or bottom center of the base symbol, aligning them with pixel-perfect precision.
-
----
-
-## 📐 High-Level Architecture
-
-The `BlissFont` pipeline acts as the compiler that translates raw BCI vector databases into web-ready typography, which is then consumed by the translation engine in `BlissNLP`.
-
-```mermaid
-graph TD
-    subgraph BlissFont [Font Compiler Pipeline]
-        A[Raw BCI-AV Data & SVGs] --> B[map_unicode.py]
-        B --> C[bliss_character_data.json]
-        C --> D[build_font.py / build_blissary_font.py]
-        D --> E[WOFF2 / OTF Fonts]
-        D --> F[Unibliss.txt Unicode Map]
-    end
-    subgraph BlissNLP [Translation Pipeline]
-        G[English Text] --> H[NLP parsing & Translate]
-        F -.-> H
-        H --> I[Interlinear Typst / HTML]
-        E -.-> J[Browser / PDF Renderer]
-        I --> J
-        J --> K[Accessible Document / PDF]
-    end
-```
-
----
-
-## 📂 Directory Structure
-
-```text
-BlissFont/
-├── pyproject.toml            # Python dependencies (managed by uv)
-├── README.md                 # This documentation
-├── data/
-│   ├── raw/                  # [Gitignored] Raw BCI data (zips, xlsx, PDF proposals)
-│   └── processed/            # Compiled databases, JSON records, WOFF2/OTF binaries
-│       ├── BlissFont-*.otf   # Outline font weights (Regular, SemiBold, Bold)
-│       ├── BlissFont-*.woff2 # Web-ready outline font weights
-│       ├── BlissaryFont-*.otf# Stroke-based font weights
-│       ├── bliss_semantic.db # Semantic DB: derivation graph + GloVe vectors + FTS
-│       ├── symbol_hub.db     # Multi-set hub: Bliss + ARASAAC/Mulberry labels + links
-│       └── Unibliss.txt      # Custom Unicode character property database
-└── scripts/
-    ├── download_data.py      # Scrapes and extracts the 2025 BCI SVGs and metadata
-    ├── map_unicode.py        # Parses Unicode proposal and overrides indicator codes
-    ├── build_font.py         # Compiles outline fonts & calculates GPOS anchors
-    ├── build_blissary_font.py# Compiles stroke-based fonts & calculates GPOS anchors
-    ├── integrate_crosswalk.py# Joins hlridge/bliss-blissary-bci-id-map ids to records
-    ├── merge_all_languages.py # Merges all 19 xlsx languages + WinBliss into the JSON
-    ├── build_semantic_db.py  # Builds bliss_semantic.db (relations, vectors, FTS)
-    ├── build_symbol_hub.py   # Multi-set hub: Bliss + GlobalSymbols sets (ARASAAC, ...)
-    └── fix_legacy_cmap_overflow.py # Strips legacy-PUA overflow from compiled fonts
-```
-
----
-
-## 🛠️ Step-by-Step Font Compiler Flow
-
-The script `build_font.py` (and its counterpart `build_blissary_font.py`) compiles SVGs into fonts using the following pipeline:
-
-```mermaid
-flowchart TD
-    Start[Start Compiler] --> LoadData[Load bliss_character_data.json]
-    LoadData --> SetupBuilder[Initialize FontBuilder UPM=1000]
-    SetupBuilder --> ParseSVGs[Parse SVG paths to Pen contours]
-    ParseSVGs --> ApplyBaseline[Scale & shift coordinates to Baseline y=0]
-    ApplyBaseline --> MapCmap[Build Character Map: Proposed Unicode + PUA + Stable Plane 15]
-    MapCmap --> CalcAnchors[Calculate top/bottom GPOS anchors dynamically]
-    CalcAnchors --> BuildMetrics[Write explicit OS/2 & hhea metrics table]
-    BuildMetrics --> SaveFont[Save OTF & WOFF2 binaries]
-    SaveFont --> End[Font Rebuilt Successfully]
-```
-
----
-
-## 🔒 Character Encoding Standards
-
-Every glyph in the font is mapped to three distinct Unicode layers for maximum stability and interoperability:
-
-1. **Proposed Unicode (Standard Block)**: Maps ~1,100 symbols to their official proposed Unicode scalars (e.g. `U+167E3` for the action indicator) extracted from the ISO proposal PDF.
-2. **Stable Plane 15 PUA (`0xF0000 + BCI_ID`)**: To prevent character shift when rebuilding the database, every single symbol is assigned an immutable Private Use Area codepoint based on its permanent BCI ID. This allows typesetters to safely compile documents without character shuffling.
-3. **Legacy PUA (`0xE000 + index`)**: Backward-compatible dynamic mapping for older web app code.
-
----
-
-## 🚀 Getting Started
-
-### 1. Requirements
-* **Python 3.10+**
-* [**uv**](https://github.com/astral-sh/uv) (fast Python packaging tool)
-
-### 2. Setup & Compilation
-Run these commands in order to setup the virtual environment, download datasets, and compile the fonts:
+## Quickstart
 
 ```bash
-# Install dependencies
 uv sync
-
-# Scrape and extract BCI-AV 2025 vectors & sheets
-uv run python scripts/download_data.py
-
-# Map Unicode proposals & apply manual overrides
-uv run python scripts/map_unicode.py
-
-# Compile Outline and Stroke-based fonts
-uv run python scripts/build_font.py
-uv run python scripts/build_blissary_font.py
+uv run python scripts/download_data.py        # BCI-AV SVGs + xlsx
+uv run python scripts/map_unicode.py          # L2/23-138 scalars → Unibliss.txt
+uv run python scripts/build_font.py           # outline fonts
+uv run python scripts/build_blissary_font.py  # stroke fonts (Blissary SVGs)
+uv run python scripts/integrate_crosswalk.py  # + Blissary B-codes
+uv run python scripts/merge_all_languages.py  # + 18 langs, WinBliss
+uv run python scripts/build_vector_db.py      # web GloVe db (50d)
 ```
 
-## 📐 Layout Metrics Configuration
-To guarantee vertical alignment in browser engines (correcting the zero-metrics centering bug), the compiled fonts enforce the following OS/2 and hhea metrics:
-* **Ascent (Typo & Win)**: `800`
-* **Descent (Typo & Win)**: `-200` (`200` Win magnitude)
-* **Line Gap**: `0`
-* **Em Square**: `1000`
+## Encoding (3 layers)
+
+| layer | range | use |
+|---|---|---|
+| official | U+16700–U+1688F (L2/23-138) | ~1,100 proposed scalars — always preferred |
+| stable PUA | `0xF0000 + BCI_ID` | every glyph, never shifts — **use this** |
+| legacy | U+E000–U+F8FF | capped at 6,400 slots, deprecated |
+
+## Scripts
+
+| script | does |
+|---|---|
+| `build_font.py` / `build_blissary_font.py` | SVGs → OTF/WOFF2, GPOS anchors from glyph bounds |
+| `map_unicode.py` | proposal PDF → `Unibliss.txt` (UCD format) |
+| `integrate_crosswalk.py` | joins hlridge B-code crosswalk (99.8%) |
+| `merge_all_languages.py` | xlsx → JSON: 18 langs + WinBliss |
+| `build_semantic_db.py` | `bliss_semantic.db`: derivations, FTS, vectors |
+| `build_symbol_hub.py` | multi-set hub (Bliss + ARASAAC/Mulberry via GlobalSymbols), ConceptNet layer, `link`/`link2`/`wsd` |
+| `load_conceptnet.py` | ConceptNet 5.7 → 1.97M edges (server-side only) |
+| `export_web_asset.py` | `bliss_resolver.bin` — SQLite-WASM asset for hub.html / ruby.html |
+| `fix_legacy_cmap_overflow.py` | strips CJK-shadow entries from built fonts |
+
+## Web pages
+
+- `index.html` — workspace: sandbox, directory, keyboard, inspector, downloads, hub tab, ruby tab
+- `hub.html` — concept resolver (search → glyph, 18 langs, derivations, cross-set links, GloVe fallback)
+- `ruby.html` — symbolic-web demo: `<ruby lang=zbl>` annotation, display modes, Bliss↔ARASAAC↔Mulberry switching
+
+## Data & licence
+
+See **NOTICE.md** — BCI-AV is **CC BY-SA 4.0** (BCI's citation text included
+there); Blissary SVGs © Hannes Ljusås; GloVe © Stanford. Big binaries
+(`*.db`, 300d vectors) are gitignored — regenerate with the scripts above.
