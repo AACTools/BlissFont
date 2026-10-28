@@ -27,7 +27,9 @@ import time
 
 SRC = os.environ.get("HUB_SRC", os.path.join("data", "processed", "symbol_hub.db"))
 OUT_DIR = os.path.join("data", "web")
-OUT = os.environ.get("RESOLVER_OUT", os.path.join(OUT_DIR, "bliss_resolver.db"))
+# NOTE: ships as .bin, not .db — the repo .gitignore excludes *.db, and this
+# asset MUST be committed so the GitHub Pages demo can fetch it.
+OUT = os.environ.get("RESOLVER_OUT", os.path.join(OUT_DIR, "bliss_resolver.bin"))
 
 GS_SYMBOL_URL = "https://globalsymbols.com/symbolsets/{slug}/symbols/{key}"
 

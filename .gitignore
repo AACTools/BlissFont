@@ -21,3 +21,5 @@ data/raw/
 #   uv run python scripts/build_vector_db.py --dim 300 --words 200000
 data/processed/vectors300.bin
 data/processed/vocab300.txt
+# The WASM resolver asset ships with the site (hub.html) — despite the *.db rule
+!data/web/bliss_resolver.bin

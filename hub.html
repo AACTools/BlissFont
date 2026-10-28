@@ -31,7 +31,7 @@
 <body>
 <main>
   <h1>Bliss Resolver — the symbol hub, running entirely client-side</h1>
-  <p class="sub">SQLite compiled to WebAssembly + a single ~MB <code>bliss_resolver.db</code>.
+  <p class="sub">SQLite compiled to WebAssembly + an ~11 MB <code>bliss_resolver.bin</code> (≈5 MB gzipped).
   No server, no API calls after page load; external links are ID pointers to GlobalSymbols.
   This is the same asset a browser extension or offline AAC tool would embed.</p>
   <div id="status">loading sql.js and the database…</div>
@@ -50,7 +50,7 @@ let db = null;
 async function init() {
   const t0 = performance.now();
   const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
-  const res = await fetch('data/web/bliss_resolver.db');
+  const res = await fetch('data/web/bliss_resolver.bin');
   const bytes = await res.arrayBuffer();
   db = new SQL.Database(new Uint8Array(bytes));
   const n = db.exec("SELECT COUNT(*) FROM symbols")[0].values[0][0];
