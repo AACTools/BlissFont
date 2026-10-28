@@ -714,7 +714,7 @@
   <header>
     <div>
       <h1>Blissymbolics Interactive Workspace</h1>
-      <div class="subtitle">Complete developer testing sandbox, character map, and virtual keyboard</div>
+      <div class="subtitle">Complete developer testing sandbox, character map, and virtual keyboard — <a href="hub.html" style="color: var(--primary-color); text-decoration: none;">Symbol Hub standalone ↗</a></div>
     </div>
     <div style="font-size: 13px; color: var(--text-muted);">
       Status: <span id="font-status" style="color: var(--success-color); font-weight: bold;">Loading Font...</span>
@@ -760,6 +760,7 @@
     <button class="tab-btn" id="tab-kbd-btn">Keyboard Layout Guide</button>
     <button class="tab-btn" id="tab-ins-btn">Glyph Inspector</button>
     <button class="tab-btn" id="tab-dl-btn">Download & Install</button>
+    <button class="tab-btn" id="tab-hub-btn">Symbol Hub (Resolver)</button>
   </div>
 
   <!-- TAB 1: Directory -->
@@ -1094,6 +1095,25 @@
     </div>
   </div>
 
+  <!-- TAB 5: Symbol Hub (Concept Resolver) -->
+  <div class="tab-content" id="tab-hub">
+    <div class="sandbox-panel">
+      <div class="sandbox-label">Concept Resolver — the semantic symbol hub (SQLite running in WebAssembly)</div>
+      <p style="font-size: 13px; color: var(--text-muted); margin: 8px 0 12px 0;">
+        Search every BCI-AV symbol by English word or any of 18 label languages. Unknown words fall back to
+        meaning-based (GloVe cosine) matching; results show derivations and cross-set links (ARASAAC / Mulberry via
+        GlobalSymbols). Loads a ~9 MB (gzipped) database on first open — fully client-side, works offline afterwards.
+        Prefer it standalone? <a href="hub.html" style="color: var(--primary-color);">hub.html ↗</a>
+      </p>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <input id="hub-input" placeholder="English word (or any language)…" value="dentist" style="max-width: 320px;">
+        <button class="copy-btn" style="margin-top: 0;" onclick="hubSearch()">Search</button>
+        <span id="hub-status" style="font-size: 12px; color: var(--text-muted);">not loaded yet</span>
+      </div>
+      <div id="hub-results" style="margin-top: 14px;"></div>
+    </div>
+  </div>
+
   <script>
     let allRecords = [];
     const grid = document.getElementById('grid');
@@ -1126,17 +1146,21 @@
     const tabKbd = document.getElementById('tab-kbd');
     const tabIns = document.getElementById('tab-ins');
     const tabDl = document.getElementById('tab-dl');
+    const tabHubBtn = document.getElementById('tab-hub-btn');
+    const tabHub = document.getElementById('tab-hub');
 
     tabDirBtn.addEventListener('click', () => {
       tabDirBtn.classList.add('active');
       tabKbdBtn.classList.remove('active');
       tabInsBtn.classList.remove('active');
       tabDlBtn.classList.remove('active');
-      
+      tabHubBtn.classList.remove('active');
+
       tabDir.classList.add('active');
       tabKbd.classList.remove('active');
       tabIns.classList.remove('active');
       tabDl.classList.remove('active');
+      tabHub.classList.remove('active');
     });
 
     tabKbdBtn.addEventListener('click', () => {
@@ -1144,11 +1168,13 @@
       tabDirBtn.classList.remove('active');
       tabInsBtn.classList.remove('active');
       tabDlBtn.classList.remove('active');
-      
+      tabHubBtn.classList.remove('active');
+
       tabKbd.classList.add('active');
       tabDir.classList.remove('active');
       tabIns.classList.remove('active');
       tabDl.classList.remove('active');
+      tabHub.classList.remove('active');
       renderKeyboard();
     });
 
@@ -1157,11 +1183,13 @@
       tabDirBtn.classList.remove('active');
       tabKbdBtn.classList.remove('active');
       tabDlBtn.classList.remove('active');
-      
+      tabHubBtn.classList.remove('active');
+
       tabIns.classList.add('active');
       tabDir.classList.remove('active');
       tabKbd.classList.remove('active');
       tabDl.classList.remove('active');
+      tabHub.classList.remove('active');
       initInspector();
     });
 
@@ -1170,11 +1198,28 @@
       tabDirBtn.classList.remove('active');
       tabKbdBtn.classList.remove('active');
       tabInsBtn.classList.remove('active');
-      
+      tabHubBtn.classList.remove('active');
+
       tabDl.classList.add('active');
       tabDir.classList.remove('active');
       tabKbd.classList.remove('active');
       tabIns.classList.remove('active');
+      tabHub.classList.remove('active');
+    });
+
+    tabHubBtn.addEventListener('click', () => {
+      tabHubBtn.classList.add('active');
+      tabDirBtn.classList.remove('active');
+      tabKbdBtn.classList.remove('active');
+      tabInsBtn.classList.remove('active');
+      tabDlBtn.classList.remove('active');
+
+      tabHub.classList.add('active');
+      tabDir.classList.remove('active');
+      tabKbd.classList.remove('active');
+      tabIns.classList.remove('active');
+      tabDl.classList.remove('active');
+      hubLazyInit();
     });
 
     // Check if Font loaded successfully
@@ -1936,6 +1981,128 @@
     familySelect.addEventListener('change', () => {
       document.documentElement.style.setProperty('--font-family-selection', familySelect.value);
     });
+
+    // ------------------------------------------------------------------
+    // Symbol Hub (Concept Resolver) — lazy-loaded WASM SQLite
+    // Mirrors hub.html, namespaced (hub*) to avoid collisions above.
+    // ------------------------------------------------------------------
+    let hubDb = null;
+    let hubLoading = false;
+    const HUB_DIM = 50;
+
+    async function hubLazyInit() {
+      if (hubDb || hubLoading) return;
+      hubLoading = true;
+      const status = document.getElementById('hub-status');
+      status.textContent = 'loading sql.js + database (~9 MB gzipped, one-off)…';
+      try {
+        if (typeof initSqlJs === 'undefined') {
+          await new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js';
+            s.onload = res; s.onerror = rej;
+            document.head.appendChild(s);
+          });
+        }
+        const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
+        const res = await fetch('data/web/bliss_resolver.bin');
+        if (!res.ok) throw new Error(`resolver db ${res.status}`);
+        hubDb = new SQL.Database(new Uint8Array(await res.arrayBuffer()));
+        const n = hubDb.exec("SELECT COUNT(*) FROM symbols")[0].values[0][0];
+        const langs = hubDb.exec("SELECT COUNT(DISTINCT lang) FROM labels")[0].values[0][0];
+        status.textContent = `ready: ${n.toLocaleString()} symbols, ${langs} languages, client-side`;
+        document.getElementById('hub-input').addEventListener('keydown', e => { if (e.key === 'Enter') hubSearch(); });
+        hubSearch();
+      } catch (e) {
+        status.textContent = 'error: ' + e.message;
+      } finally {
+        hubLoading = false;
+      }
+    }
+
+    const hubNorm = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    const hubVec = (blob) => new Float32Array(new Uint8Array(blob).buffer);
+    function hubCos(a, b) {
+      let d = 0, na = 0, nb = 0;
+      for (let k = 0; k < a.length; k++) { d += a[k] * b[k]; na += a[k] ** 2; nb += b[k] ** 2; }
+      return d / (Math.sqrt(na) * Math.sqrt(nb) || 1);
+    }
+
+    function hubSemantic(q) {
+      const acc = new Float32Array(HUB_DIM); let n = 0;
+      for (const w of q.split(' ')) {
+        const r = hubDb.exec("SELECT vec FROM word_vecs WHERE word = ?", [w]);
+        if (!r.length) continue;
+        const v = hubVec(r[0].values[0][0]);
+        for (let d = 0; d < HUB_DIM; d++) acc[d] += v[d];
+        n++;
+      }
+      if (!n) return null;
+      for (let d = 0; d < HUB_DIM; d++) acc[d] /= n;
+      const rows = hubDb.exec(
+        `SELECT v.symbol_key, s.gloss_en, s.pos, s.pua_stable, s.blissary_code, v.vec
+         FROM symbol_vecs v JOIN symbols s ON s.key = v.symbol_key`);
+      const scored = [];
+      for (const [key, gloss, pos, pua, bcode, vec] of rows[0].values) {
+        scored.push([hubCos(acc, hubVec(vec)), key, gloss, pos, pua, bcode]);
+      }
+      scored.sort((a, b) => b[0] - a[0]);
+      return scored.slice(0, 12).map(([s, key, gloss, pos, pua, bcode]) => [key, gloss, pos, pua, bcode, '', s]);
+    }
+
+    function hubSearch() {
+      if (!hubDb) { hubLazyInit(); return; }
+      const q = hubNorm(document.getElementById('hub-input').value);
+      const out = document.getElementById('hub-results');
+      if (!q) return;
+      const labelQuery = (term) => hubDb.exec(
+        `SELECT s.key, s.gloss_en, s.pos, s.pua_stable, s.blissary_code, l.lang, l.text
+         FROM labels l JOIN symbols s ON s.key = l.symbol_key
+         WHERE l.norm = ? OR l.norm LIKE ?
+         ORDER BY CASE WHEN l.norm = ? THEN 0 ELSE 1 END, s.gloss_en
+         LIMIT 12`, [term, term + ' %', term]);
+
+      let rows = labelQuery(q);
+      let semantic = false;
+      if (!rows.length && /s$/.test(q) && q.length > 3) rows = labelQuery(q.replace(/e?s$/, ''));
+      if (!rows.length) { const sem = hubSemantic(q); if (sem) { rows = [{ values: sem }]; semantic = true; } }
+      if (!rows.length) { out.innerHTML = '<p style="color: var(--text-muted);">no matches</p>'; return; }
+
+      const seen = new Set();
+      let html = `<table style="border-collapse: collapse; width: 100%;">` +
+        `<tr><th style="text-align:left; padding:4px 8px; color: var(--text-muted);">glyph</th>` +
+        `<th style="text-align:left; padding:4px 8px; color: var(--text-muted);">id / gloss</th>` +
+        `<th style="text-align:left; padding:4px 8px; color: var(--text-muted);">${semantic ? 'cosine' : 'matched label'}</th>` +
+        `<th style="text-align:left; padding:4px 8px; color: var(--text-muted);">codes</th></tr>`;
+      for (const [key, gloss, pos, pua, bcode, lang, text] of rows[0].values) {
+        if (seen.has(key)) continue; seen.add(key);
+        const cp = pua ? String.fromCodePoint(parseInt(pua.slice(2), 16)) : '';
+        const mid = semantic ? Number(text).toFixed(3) : `${lang}: ${escapeHtml(text)}`;
+        html += `<tr style="cursor:pointer; border-top: 1px solid var(--border-color);" onclick="hubDetail('${key}')">` +
+          `<td style="padding:4px 8px;" class="font-render">${cp}</td>` +
+          `<td style="padding:4px 8px;"><b>${escapeHtml(gloss)}</b> <span style="color: var(--text-muted); font-size:11px;">${key} ${escapeHtml(pos || '')}</span></td>` +
+          `<td style="padding:4px 8px;">${mid}</td>` +
+          `<td style="padding:4px 8px; color: var(--text-muted); font-size:12px;">${escapeHtml(pua || '')}${bcode ? '<br>' + escapeHtml(bcode) : ''}</td></tr>`;
+      }
+      out.innerHTML = html + '</table>' +
+        `<p style="color: var(--text-muted); font-size: 12px;">${semantic ? 'no literal label match — nearest symbols by meaning (GloVe cosine). ' : ''}click a row for derivations + cross-set links</p>`;
+    }
+
+    function hubDetail(key) {
+      let html = '';
+      const d = hubDb.exec("SELECT component_key, component_gloss FROM derivations WHERE parent_key = ?", [key]);
+      if (d.length) {
+        html += '<p style="margin:10px 0 4px;"><b>derivation:</b> ' + d[0].values.map(([ck, cg]) =>
+          `<span class="tag" style="cursor:pointer" onclick="hubDetail('${ck}')">${escapeHtml(cg || ck)}</span>`).join(' + ') + '</p>';
+      }
+      const l = hubDb.exec("SELECT dataset, external_key, method, score, url FROM links WHERE bliss_key = ? LIMIT 15", [key]);
+      if (l.length) {
+        html += '<p style="margin:6px 0 4px;"><b>same concept in other sets:</b></p>' + l[0].values.map(([ds, ek, m, sc, url]) =>
+          `<span class="tag">${ds}: ${url ? `<a href="${url}" target="_blank" style="color: var(--primary-color);">${escapeHtml(ek)} ↗</a>` : escapeHtml(ek)}</span>`).join(' ');
+      }
+      const out = document.getElementById('hub-results');
+      out.insertAdjacentHTML('beforeend', `<div style="margin-top:8px; padding:10px; background: rgba(22,27,34,.85); border: 1px solid var(--border-color); border-radius: 6px;">${html || '<span style="color: var(--text-muted);">primitive — no derivation or links recorded</span>'}</div>`);
+    }
   </script>
 </body>
 </html>
