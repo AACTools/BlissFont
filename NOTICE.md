@@ -9,10 +9,24 @@ and the respective licence terms with them.
   https://www.blissymbolics.org — symbol files at
   https://blissymbolics.org/index.php/symbol-files
 - **Used for**: the 6,183 active symbols (6,419 glyph records) — English and
-  16-language glosses, derivations, POS classes, and the source SVG vectors of
-  the `BlissFont` outline family. The *terms of the BCI-AV release apply* to
-  this data; capture and honour them before redistributing (see task T-106 in
-  the project brief).
+  18-language glosses, derivations, POS classes, WinBliss sequences, the
+  source SVG vectors of the `BlissFont` outline family, and the label text
+  embedded in the shipped `bliss_resolver.bin` asset (share-alike travels
+  with it).
+- **Licence (verified 2026-10-28 from
+  https://www.blissymbolics.org/index.php/licensing):**
+  **Creative Commons BY-SA 4.0** (CC BY-SA 4.0). Use and redistribution —
+  commercial or otherwise — is permitted with clear BCI attribution;
+  derivatives must be redistributed under the same licence. BCI's preferred
+  citation, verbatim:
+  > The Blissymbolics Communication International Authorized Vocabulary
+  > (BCI-AV) is available at www.blissymbolics.org. The BCI-AV and other BCI
+  > Blissymbol products are copyright Blissymbolics Communication
+  > International (BCI) and made available under the Creative Commons
+  > BY-SA 4.0 licence. https://creativecommons.org/licenses/by-sa/4.0/
+  >
+  > Short form: Parts herein © Blissymbolics Communication International
+  > (BCI), distributed under the Creative Commons BY-SA 4.0 licence.
 - **Downloaded by**: `scripts/download_data.py` from
   `http://www.blissymbolics.net/BCI-AV_2025-02-15/`.
 

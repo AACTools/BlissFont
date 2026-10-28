@@ -15,6 +15,7 @@ wheels/
 # Project data files
 data/raw/
 *.db
+*.db-journal
 *.sqlite
 *.sqlite3
 # Bench-quality vector db (115 MB, over GitHub's limit) — regenerate with:
