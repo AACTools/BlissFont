@@ -1197,7 +1197,7 @@
       'w': { bci: '13901', label: 'earth / ground' },
       'e': { bci: '13894', label: 'ear' },
       'r': { bci: '16420', label: 'protection / shelter' },
-      't': { bci: '9011', label: 'plural indicator' },
+      't': { bci: '27112', label: 'plural indicator' },
       'y': { bci: '8496', label: 'zero (0)' },
       'u': { bci: '14166', label: 'female gender' },
       'i': { bci: '14165', label: 'male gender' },
@@ -1262,8 +1262,8 @@
         categoryFilter.appendChild(opt);
       });
 
-      allRecords.forEach((r, idx) => {
-        const cp = String.fromCharCode(0xE000 + idx);
+      allRecords.forEach(r => {
+        const cp = blissChar(r.bci_id);
         const name = r.glosses.en || r.bci_id;
         
         if (r.category === 'Indicator') {
@@ -1314,10 +1314,9 @@
       const limit = Math.min(records.length, 120);
       for (let i = 0; i < limit; i++) {
         const r = records[i];
-        const origIdx = allRecords.findIndex(x => x.bci_id === r.bci_id);
-        const cp_pua = 0xE000 + origIdx;
-        const char_pua = String.fromCharCode(cp_pua);
-        const hex_pua = cp_pua.toString(16).toUpperCase();
+        const cp_pua = blissCodePoint(r.bci_id);
+        const char_pua = cp_pua === null ? '' : String.fromCodePoint(cp_pua);
+        const hex_pua = cp_pua === null ? '?' : cp_pua.toString(16).toUpperCase();
         
         let svgPaths = '';
         if (r.geometry && r.geometry.stroke_paths) {
@@ -1447,6 +1446,34 @@
       "flowers": "flower", "books": "book", "hearts": "heart", "words": "word", "symbols": "symbol"
     };
 
+    // Stable Plane-15 PUA helpers -------------------------------------------
+    // Every numeric BCI id owns a permanent codepoint (0xF0000 + bci_id) that
+    // never shifts when the database is recompiled. The legacy U+E000+index
+    // mapping is kept only as a fallback for non-numeric ids, and only inside
+    // the 6,400-slot BMP PUA block (U+E000–U+F8FF) — beyond it we would shadow
+    // the CJK Compatibility Ideographs block.
+    function blissCodePoint(bciId) {
+      if (/^\d+$/.test(String(bciId))) return 0xF0000 + parseInt(bciId, 10);
+      const idx = allRecords.findIndex(x => x.bci_id === bciId);
+      return (idx >= 0 && idx < 6400) ? 0xE000 + idx : null;
+    }
+    function blissChar(bciId) {
+      const cp = blissCodePoint(bciId);
+      return cp === null ? '' : String.fromCodePoint(cp);
+    }
+
+    // Grammar indicator suffix for a translated word. Mirrors BlissNLP
+    // translate.py: finite verbs carry the action indicator (8993) plus past
+    // (9004) or continuous (28043); plural nouns carry 27112.
+    function appendIndicators(str, { isPast = false, isContinuous = false, isPlural = false } = {}) {
+      let out = str;
+      if (isPast || isContinuous) out += blissChar('8993');   // action indicator
+      if (isPast) out += blissChar('9004');                   // past action
+      if (isContinuous) out += blissChar('28043');            // continuous form
+      if (isPlural) out += blissChar('27112');                // plural
+      return out;
+    }
+
     function translateTextToSymbols(text) {
       const lines = text.split('\n');
       const translatedLines = lines.map(line => {
@@ -1526,19 +1553,7 @@
         if (compRecords.every(r => r !== undefined)) {
           let symbol = compileCompoundSvg(compRecords);
           if (symbol) {
-            if (isPast) {
-              const pastIdx = allRecords.findIndex(x => x.bci_id === "9004");
-              if (pastIdx !== -1) symbol += String.fromCharCode(0xE000 + pastIdx);
-            }
-            if (isContinuous) {
-              const contIdx = allRecords.findIndex(x => x.bci_id === "28043");
-              if (contIdx !== -1) symbol += String.fromCharCode(0xE000 + contIdx);
-            }
-            if (isPlural) {
-              const plurIdx = allRecords.findIndex(x => x.bci_id === "9011");
-              if (plurIdx !== -1) symbol += String.fromCharCode(0xE000 + plurIdx);
-            }
-            return symbol;
+            return appendIndicators(symbol, { isPast, isContinuous, isPlural });
           }
         }
       }
@@ -1549,47 +1564,24 @@
       });
       
       if (!record) {
-        record = allRecords.find(r => r.glosses.en.toLowerCase().includes(word));
+        // Substring fallback: pick the *shortest* matching gloss so a short
+        // lookup like "cat" doesn't grab the first long gloss containing it.
+        let best = null;
+        for (const r of allRecords) {
+          const g = r.glosses.en.toLowerCase();
+          if (g.includes(word) && (!best || g.length < best.glosses.en.length)) best = r;
+        }
+        record = best;
       }
       
       if (record) {
-        const origIdx = allRecords.findIndex(x => x.bci_id === record.bci_id);
-        let char = String.fromCharCode(0xE000 + origIdx);
-        
-        if (isPast) {
-          const pastIdx = allRecords.findIndex(x => x.bci_id === "9004");
-          if (pastIdx !== -1) char += String.fromCharCode(0xE000 + pastIdx);
-        }
-        if (isContinuous) {
-          const contIdx = allRecords.findIndex(x => x.bci_id === "28043");
-          if (contIdx !== -1) char += String.fromCharCode(0xE000 + contIdx);
-        }
-        if (isPlural) {
-          const plurIdx = allRecords.findIndex(x => x.bci_id === "9011");
-          if (plurIdx !== -1) char += String.fromCharCode(0xE000 + plurIdx);
-        }
-        return char;
+        return appendIndicators(blissChar(record.bci_id), { isPast, isContinuous, isPlural });
       }
       
       // Fallback: Try vector-similarity lookup in our 100k GloVe database
       const closestBciId = findClosestSemanticSymbol(word);
       if (closestBciId) {
-        const origIdx = allRecords.findIndex(x => x.bci_id === closestBciId);
-        let char = String.fromCharCode(0xE000 + origIdx);
-        
-        if (isPast) {
-          const pastIdx = allRecords.findIndex(x => x.bci_id === "9004");
-          if (pastIdx !== -1) char += String.fromCharCode(0xE000 + pastIdx);
-        }
-        if (isContinuous) {
-          const contIdx = allRecords.findIndex(x => x.bci_id === "28043");
-          if (contIdx !== -1) char += String.fromCharCode(0xE000 + contIdx);
-        }
-        if (isPlural) {
-          const plurIdx = allRecords.findIndex(x => x.bci_id === "9011");
-          if (plurIdx !== -1) char += String.fromCharCode(0xE000 + plurIdx);
-        }
-        return char;
+        return appendIndicators(blissChar(closestBciId), { isPast, isContinuous, isPlural });
       }
       
       return null;
@@ -1799,7 +1791,7 @@
             bci = mapping.bci;
             const rank = allRecords.findIndex(r => r.bci_id === bci);
             if (rank !== -1) {
-              char = String.fromCharCode(0xE000 + rank);
+              char = blissChar(bci);
               keyDiv.classList.add('active-radical');
               
               // Click handler
@@ -1888,8 +1880,8 @@
       if (!r) return;
       
       const origIdx = allRecords.findIndex(x => x.bci_id === bciId);
-      const cp = 0xE000 + origIdx;
-      const char = String.fromCharCode(cp);
+      const cp = blissCodePoint(bciId);
+      const char = cp === null ? '-' : String.fromCodePoint(cp);
       
       inspectorGlyphRender.textContent = char;
       
@@ -1898,7 +1890,7 @@
       document.getElementById('ins-val-gloss-en').textContent = r.glosses.en || '-';
       document.getElementById('ins-val-gloss-sv').textContent = r.glosses.sv || '-';
       document.getElementById('ins-val-cat').textContent = r.category || '-';
-      document.getElementById('ins-val-pua').textContent = `U+${cp.toString(16).toUpperCase()}`;
+      document.getElementById('ins-val-pua').textContent = `U+${cp === null ? '?' : cp.toString(16).toUpperCase()}`;
       document.getElementById('ins-val-proposed').textContent = r.proposed_unicode || 'PUA Only';
       
       const recipeValue = (r.derivation_components && r.derivation_components.length > 0) 

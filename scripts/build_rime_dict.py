@@ -86,10 +86,14 @@ def main():
         swedish = str(row.get('Swedish', '')).strip() if pd.notna(row.get('Swedish')) else ""
         winbliss = str(row.get('WinBliss', '')).strip() if pd.notna(row.get('WinBliss')) else ""
         
-        # Get character symbols
+        # Get character symbols. Prefer the stable Plane-15 PUA (0xF0000 +
+        # bci_id); fall back to the legacy BMP slot only for non-numeric ids
+        # and only inside the 6,400-slot block (U+E000–U+F8FF).
         char_pua = ""
         rank = id_to_rank.get(bci_id)
-        if rank is not None:
+        if bci_id.isdigit():
+            char_pua = chr(0xF0000 + int(bci_id))
+        elif rank is not None and rank < 6400:
             char_pua = chr(0xE000 + rank)
             
         char_uni = ""

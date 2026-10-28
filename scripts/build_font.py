@@ -201,10 +201,12 @@ def compile_weight(weight_name, stroke_val, weight_class, records):
             except ValueError:
                 pass
                 
-        pua_cp = 0xE000 + idx
-        cmap[pua_cp] = glyph_name
-        
-        # Add stable Plane 15 PUA codepoint (0xF0000 + BCI ID)
+        # Legacy BMP PUA (backward compat). The block U+E000–U+F8FF has only
+        # 6,400 slots; never map past it or we shadow CJK Compatibility.
+        if idx < 6400:
+            cmap[0xE000 + idx] = glyph_name
+
+        # Stable Plane 15 PUA codepoint (0xF0000 + BCI ID)
         try:
             stable_cp = 0xF0000 + int(bci_id)
             cmap[stable_cp] = glyph_name
