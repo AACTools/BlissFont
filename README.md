@@ -36,7 +36,7 @@ uv run python scripts/export_web_asset.py     # data/web/bliss_resolver.bin
 
 | layer | range | use |
 |---|---|---|
-| official | U+16700–U+1688F (L2/23-138) | ~1,100 proposed scalars — always preferred |
+| official | U+16200–U+167FF (L2/23-138 chart) | ~1,100 proposed scalars — always preferred |
 | stable PUA | `0xF0000 + BCI_ID` | every glyph, never shifts — **use this** |
 | legacy | U+E000–U+F8FF | capped at 6,400 slots, deprecated |
 
