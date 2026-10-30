@@ -189,6 +189,18 @@ def determine_category(row, components):
         return "Format Control"
     return "Base Spacing"
 
+
+def norm_bci(value) -> str:
+    """BCI ids arrive as int (2025 xlsx) or float (2026 Google Sheets export,
+    e.g. 8483.0). Normalize both to the canonical integer string."""
+    try:
+        f = float(value)
+        if f.is_integer():
+            return str(int(f))
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip()
+
 def main():
     os.makedirs(PROCESSED_DIR, exist_ok=True)
     
@@ -230,7 +242,7 @@ def main():
     conn.commit()
     
     # Ingest BCI-AV spreadsheet
-    excel_path = os.path.join(RAW_DIR, "BCI-AV_SKOG_2025-02-15_derivations_translations.xlsx")
+    excel_path = os.path.join(RAW_DIR, "BCI-AV_derivations.xlsx")
     print(f"Loading Excel file: {excel_path}")
     df = pd.read_excel(excel_path)
     
@@ -238,7 +250,7 @@ def main():
     # Map lowercase english terms to BCI-AV numeric ID
     gloss_to_id = {}
     for idx, row in df.iterrows():
-        bci_id = str(row['BCI-AV#']).strip()
+        bci_id = norm_bci(row['BCI-AV#'])
         eng = str(row.get('English', '')).strip()
         if eng:
             # English can contain comma-separated synonyms
@@ -251,7 +263,7 @@ def main():
     print("Processing and sanitizing symbols...")
     
     for idx, row in df.iterrows():
-        bci_id = str(row['BCI-AV#']).strip()
+        bci_id = norm_bci(row['BCI-AV#'])
         english = str(row.get('English', '')).split(',')[0].strip() # use primary gloss
         deriv_text = str(row.get('Derivation - explanation', '')) if pd.notna(row.get('Derivation - explanation')) else ""
         

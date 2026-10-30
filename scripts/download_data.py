@@ -6,9 +6,11 @@ import requests
 
 # BCI-AV 2025 and Unicode Proposals URLs
 URLS = {
-    "gloss_map": "http://www.blissymbolics.net/BCI-AV_2025-02-15/BCI-AV_SKOG_2025-02-15_ID_to_gloss_map.txt",
-    "svg_zip": "http://www.blissymbolics.net/BCI-AV_2025-02-15/bliss_svg_id.zip",
-    "derivations_xlsx": "http://www.blissymbolics.net/BCI-AV_2025-02-15/BCI-AV_SKOG_2025-02-15_(en+sv+no+fi+hu+de+nl+af+ru+is+lt+lv+po+fr+es+pt+it+dk)+derivations_8483-29642.xlsx",
+    "gloss_map": "http://www.blissymbolics.net/BCI-AV_2026-09-12/BCI-AV_SKOG_2026-09-12_id_to_gloss_map.txt",
+    "svg_zip": "http://www.blissymbolics.net/BCI-AV_2026-09-12/bliss_svg_id.zip",
+    # 2026 release publishes ODS/Google-Sheets instead of xlsx; export the
+    # shared sheet as xlsx for the openpyxl-based loaders
+    "derivations_xlsx": "https://docs.google.com/spreadsheets/d/16qIBsMtXX-1fpF2dYg7kxGfr5-tpBaR6Panbtn4xsfA/export?format=xlsx",
     "pdf_n5130": "http://unicode.org/wg2/docs/n5130-blissymbols.pdf",
     "pdf_n5149": "http://unicode.org/wg2/docs/n5149-blissymbols-keyboards.pdf",
     "pdf_n5171": "http://unicode.org/wg2/docs/n5171-bliss-radicals.pdf",
@@ -70,14 +72,16 @@ def main():
     os.makedirs(RAW_DIR, exist_ok=True)
     
     # 1. Download ID to Gloss map
-    gloss_map_path = os.path.join(RAW_DIR, "BCI-AV_SKOG_2025-02-15_ID_to_gloss_map.txt")
+    gloss_map_path = os.path.join(RAW_DIR, "BCI-AV_SKOG_2026-09-12_id_to_gloss_map.txt")
     if not os.path.exists(gloss_map_path):
         download_file(URLS["gloss_map"], gloss_map_path)
     else:
         print(f"Gloss map already exists: {gloss_map_path}")
         
-    # 2. Download Excel derivations and translations
-    xlsx_path = os.path.join(RAW_DIR, "BCI-AV_SKOG_2025-02-15_derivations_translations.xlsx")
+    # 2. Download Excel derivations and translations (2026 release: exported
+    #    from BCI's shared Google Sheet as xlsx; canonical filename used by
+    #    build_database.py and merge_all_languages.py)
+    xlsx_path = os.path.join(RAW_DIR, "BCI-AV_derivations.xlsx")
     if not os.path.exists(xlsx_path):
         download_file(URLS["derivations_xlsx"], xlsx_path)
     else:

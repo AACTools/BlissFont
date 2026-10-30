@@ -52,7 +52,7 @@ let db = null;
 
 async function init() {
   const t0 = performance.now();
-  db = await Resolver.load('data/web/bliss_resolver.bin?v=20261030');
+  db = await Resolver.load('data/web/bliss_resolver.bin?v=20261031');
   const n = db.exec("SELECT COUNT(*) FROM symbols")[0].values[0][0];
   const langs = db.exec("SELECT COUNT(DISTINCT lang) FROM labels")[0].values[0][0];
   document.getElementById('status').textContent =

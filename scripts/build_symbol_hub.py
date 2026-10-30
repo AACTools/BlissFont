@@ -7,7 +7,7 @@ Answers: "can the Bliss semantic DB design extend to other symbol libraries
 vectors), plus a datasets registry and a cross-set link layer.
 
 Sourcing policy (deliberate):
-  - Blissymbolics: **BCI-AV 2025-02-15 is the source of truth** (19 languages,
+  - Blissymbolics: **BCI-AV 2026-09-12 is the source of truth** (19 languages,
     derivation explanations, WinBliss sequences — richer than any mirror).
     GlobalSymbols is NOT used for Bliss except as an optional cross-check.
   - Other sets (ARASAAC, Mulberry, …): loaded from GlobalSymbols' v1 API
@@ -62,10 +62,10 @@ def http_get(url: str, timeout: int = 60) -> bytes:
 
 BLISS_DATASET = (
     "bliss-bciav",
-    "Blissymbolics (BCI-AV 2025-02-15)",
+    "Blissymbolics (BCI-AV 2026-09-12)",
     "Blissymbolics Communication International",
     "BCI-AV release terms (see NOTICE.md / T-106)",
-    "http://www.blissymbolics.net/BCI-AV_2025-02-15/",
+    "http://www.blissymbolics.net/BCI-AV_2026-09-12/",
 )
 
 
@@ -165,10 +165,10 @@ def load_bliss(conn: sqlite3.Connection) -> None:
             "category": r.get("category"),
             "explanation_blissary": (r.get("explanation_blissary") or "").strip() or None,
         }
-        row = (g.get("en", ""), json.dumps(extra, ensure_ascii=False), r.get("category"))
+        row = (g.get("en", ""), json.dumps(extra, ensure_ascii=False))
         if bci in existing:
             cur.execute(
-                "UPDATE symbols SET gloss_en=?, extra=?, pos=? WHERE id=?",
+                "UPDATE symbols SET gloss_en=?, extra=? WHERE id=?",
                 (*row, existing[bci]))
             sid = existing[bci]
         else:

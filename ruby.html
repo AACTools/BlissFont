@@ -38,6 +38,7 @@
                  color: #f0f6fc; }
   .ext-symbol { height: 28px; vertical-align: middle; }
   .unresolved { opacity: 0.6; }
+  .composed svg { height: 28px; width: auto; display: inline-block; vertical-align: middle; }
 
   /* display modes — the WAI-Adapt "user preference" model */
   body[data-mode="text"]      ruby rt { display: none; }
@@ -83,15 +84,28 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
 <script src="resolver.js"></script>
 <script>
-let db = null;
+let db = null, blissBuilderReady = null;
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const norm = Resolver.norm;
+
+// lazy-load bliss-svg-builder (hlridge, MPL-2.0) from unpkg for client-side
+// composition of words that have no single symbol
+function loadBlissBuilder() {
+  if (blissBuilderReady) return blissBuilderReady;
+  blissBuilderReady = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/bliss-svg-builder@1.0.0/dist/bliss-svg-builder.iife.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  return blissBuilderReady;
+}
 
 async function init() {
   const status = document.getElementById('status');
   status.textContent = 'loading resolver (~11 MB gzipped)…';
   const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
-  const res = await fetch('data/web/bliss_resolver.bin?v=20261030');
+  const res = await fetch('data/web/bliss_resolver.bin?v=20261031');
   db = new SQL.Database(new Uint8Array(await res.arrayBuffer()));
   status.textContent = 'ready';
   render();
@@ -102,8 +116,37 @@ function lookup(word) {
   // shared staged lookup: exact -> plural retry -> shortest prefix
   const rows = Resolver.labelQuery(db, word);
   if (!rows.length) return null;
-  const [key, gloss, pos, pua] = rows[0];
-  return { bci: key, pua, gloss, pos };
+  const [key, gloss, pos, pua, bcode] = rows[0];
+  return { bci: key, pua, gloss, pos, bcode };
+}
+
+// compose an unmapped word from parts ("fire+water", or de-compounded) via
+// bliss-svg-builder — renders as ONE properly kerned client-side SVG
+async function composeWord(word) {
+  const w = norm(word);
+  if (!w) return null;
+  let parts = w.includes('+') ? w.split('+') : null;
+  if (!parts) {
+    for (let i = 3; i <= w.length - 3; i++) {
+      if (Resolver.labelQuery(db, w.slice(0, i)).length &&
+          Resolver.labelQuery(db, w.slice(i)).length) {
+        parts = [w.slice(0, i), w.slice(i)];
+        break;
+      }
+    }
+  }
+  if (!parts || parts.length < 2) return null;
+  const codes = parts.map(p => {
+    const rows = Resolver.labelQuery(db, p);
+    return rows.length ? rows[0][4] : null;  // blissary_code
+  });
+  if (codes.some(c => !c)) return null;
+  await loadBlissBuilder();
+  try {
+    const b = new BlissSVGBuilder(`[color=#F0F6FC]||${codes.join('/')}`);
+    if (b.warnings.length || b.elementCount < 1) return null;
+    return b.svgCode;
+  } catch (e) { return null; }
 }
 
 const imgCache = new Map();
@@ -125,7 +168,7 @@ async function render() {
   const out = document.getElementById('output');
   const stats = document.getElementById('stats');
   const words = text.split(/(\s+)/);
-  let n = 0, hit = 0, extHit = 0;
+  let n = 0, hit = 0, extHit = 0, composed = 0;
   const parts = [];
   const jobs = [];
   for (const w of words) {
@@ -133,11 +176,23 @@ async function render() {
     const lead = w.match(/^[^\w]+/)?.[0] ?? '';
     const trail = w.match(/[^\w]+$/)?.[0] ?? '';
     const core = w.slice(lead.length, w.length - trail.length);
-    const found = core && lookup(core);
+    const found = core ? lookup(core) : null;
     n++;
     if (!found) {
-      // emit the original token (lead+core+trail === w when nothing found)
-      parts.push({ html: esc(w) });
+      // Core 2: try client-side composition before giving up on the word
+      const idx = parts.length;
+      parts.push({ pending: true, lead: esc(lead), trail: esc(trail) });
+      jobs.push((async () => {
+        const svg = core ? await composeWord(core) : null;
+        if (svg) {
+          composed++;
+          hit++;
+          parts[idx] = { html:
+            `${parts[idx].lead}<ruby lang="zbl"><span class="base-text">${esc(core)}</span><rt><span class="composed" title="composed client-side by bliss-svg-builder (hlridge)">${svg}</span></rt></ruby>${parts[idx].trail}` };
+        } else {
+          parts[idx] = { html: esc(w) };
+        }
+      })());
       continue;
     }
     hit++;
@@ -163,6 +218,7 @@ async function render() {
   await Promise.all(jobs);
   out.innerHTML = parts.map(p => p.html).join('');
   stats.innerHTML = `words: <b>${n}</b> · annotated: <b>${hit}</b> (${(100*hit/n).toFixed(0)}%)` +
+    (composed ? ` · <b>${composed}</b> composed client-side` : '') +
     (set !== 'bliss' ? ` · ${set} art available for <b>${extHit}</b> of those (rest fall back to Bliss — the coverage gap is the demo)` : '');
 }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Merge ALL languages (+ WinBliss input sequences) from the BCI-AV 2025-02-15
+Merge ALL languages (+ WinBliss input sequences) from the BCI-AV 2026-09-12
 derivations spreadsheet into bliss_character_data.json.
 
 The DB builder only carried 5 gloss languages (en/sv/de/nl/fr); the source
@@ -21,8 +21,8 @@ import openpyxl
 RAW = os.path.join("data", "raw")
 XLSX = os.path.join(RAW, "BCI-AV_derivations.xlsx")
 XLSX_URL = (
-    "http://www.blissymbolics.net/BCI-AV_2025-02-15/"
-    "BCI-AV_SKOG_2025-02-15_%28en%2Bsv%2Bno%2Bfi%2Bhu%2Bde%2Bnl%2Baf%2Bru%2Bis"
+    "http://www.blissymbolics.net/BCI-AV_2026-09-12/"
+    "BCI-AV_SKOG_2026-09-12_%28en%2Bsv%2Bno%2Bfi%2Bhu%2Bde%2Bnl%2Baf%2Bru%2Bis"
     "%2Blt%2Blv%2Bpo%2Bfr%2Bes%2Bpt%2Bit%2Bdk%29%2Bderivations_8483-29642.xlsx"
 )
 JSON_PATH = os.path.join("data", "processed", "bliss_character_data.json")
@@ -36,6 +36,18 @@ LANG_MAP = {
     "Italian": "it", "Danish": "da",
 }
 
+
+
+def norm_bci(value) -> str:
+    """BCI ids arrive as int (2025 xlsx) or float (2026 Google Sheets export,
+    e.g. 8483.0). Normalize both to the canonical integer string."""
+    try:
+        f = float(value)
+        if f.is_integer():
+            return str(int(f))
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip()
 
 def main() -> None:
     if not os.path.exists(XLSX):
@@ -58,7 +70,7 @@ def main() -> None:
     for row in rows:
         if row[0] is None:
             continue
-        bci = str(row[0]).strip()
+        bci = norm_bci(row[0])
         entry = {}
         for col_name, i in lang_cols.items():
             v = row[i] if i < len(row) else None

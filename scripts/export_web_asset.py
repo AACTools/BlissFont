@@ -130,7 +130,7 @@ def main() -> None:
         "INSERT INTO meta VALUES (?,?)",
         [
             ("built", time.strftime("%Y-%m-%d")),
-            ("source", "symbol_hub.db / BCI-AV 2025-02-15 + hlridge crosswalk"),
+            ("source", "symbol_hub.db / BCI-AV 2026-09-12 + hlridge crosswalk"),
             ("license", "BCI-AV release terms apply (BlissNLP/BlissFont NOTICE.md, T-106 pending)"),
             ("note", "external links are ID pointers only; no third-party label text embedded"),
         ],

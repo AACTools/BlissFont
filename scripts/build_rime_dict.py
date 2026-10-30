@@ -46,6 +46,18 @@ def extract_key_sequence(winbliss):
             keys.append(key.lower())
     return "".join(keys)
 
+
+def norm_bci(value) -> str:
+    """BCI ids arrive as int (2025 xlsx) or float (2026 Google Sheets export,
+    e.g. 8483.0). Normalize both to the canonical integer string."""
+    try:
+        f = float(value)
+        if f.is_integer():
+            return str(int(f))
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip()
+
 def main():
     if not os.path.exists(DB_PATH) or not os.path.exists(JSON_PATH):
         print("Error: Compiled vocabulary assets not found.")
@@ -61,7 +73,7 @@ def main():
 
     
     import pandas as pd
-    excel_path = os.path.join("data", "raw", "BCI-AV_SKOG_2025-02-15_derivations_translations.xlsx")
+    excel_path = os.path.join("data", "raw", "BCI-AV_derivations.xlsx")
     print(f"Reading WinBliss strings from Excel: {excel_path}")
     df = pd.read_excel(excel_path)
     
@@ -81,7 +93,7 @@ def main():
     entries_count = 0
     
     for idx, row in df.iterrows():
-        bci_id = str(row['BCI-AV#']).strip()
+        bci_id = norm_bci(row['BCI-AV#'])
         english = str(row.get('English', '')).strip()
         swedish = str(row.get('Swedish', '')).strip() if pd.notna(row.get('Swedish')) else ""
         winbliss = str(row.get('WinBliss', '')).strip() if pd.notna(row.get('WinBliss')) else ""
