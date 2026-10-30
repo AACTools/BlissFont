@@ -148,6 +148,11 @@ def load_bliss(conn: sqlite3.Connection) -> None:
     cur = conn.cursor()
     n_sym = n_lab = n_der = 0
     id_by_bci = {}
+
+    # Id-stable upsert: existing rows keep their id (links depend on it!);
+    # INSERT OR REPLACE here would reassign rowids and orphan every link.
+    existing = {row[0]: row[1] for row in cur.execute(
+        "SELECT key, id FROM symbols WHERE dataset='bliss-bciav'")}
     for r in records:
         bci = r["bci_id"]
         g = r.get("glosses") or {}
@@ -158,14 +163,24 @@ def load_bliss(conn: sqlite3.Connection) -> None:
             "bliss_svg_builder_code": r.get("bliss_svg_builder_code"),
             "winbliss": r.get("winbliss"),
             "category": r.get("category"),
+            "explanation_blissary": (r.get("explanation_blissary") or "").strip() or None,
         }
-        cur.execute(
-            "INSERT OR REPLACE INTO symbols (dataset, key, pos, gloss_en, extra) VALUES (?,?,?,?,?)",
-            (slug, bci, r.get("category"), g.get("en", ""), json.dumps(extra, ensure_ascii=False)),
-        )
-        sid = cur.lastrowid
+        row = (g.get("en", ""), json.dumps(extra, ensure_ascii=False), r.get("category"))
+        if bci in existing:
+            cur.execute(
+                "UPDATE symbols SET gloss_en=?, extra=?, pos=? WHERE id=?",
+                (*row, existing[bci]))
+            sid = existing[bci]
+        else:
+            cur.execute(
+                "INSERT INTO symbols (dataset, key, pos, gloss_en, extra) VALUES (?,?,?,?,?)",
+                (slug, bci, r.get("category"), *row))
+            sid = cur.lastrowid
         id_by_bci[bci] = sid
         n_sym += 1
+        # idempotent rebuild: clear this symbol's labels/derivations first
+        cur.execute("DELETE FROM labels WHERE symbol_id=?", (sid,))
+        cur.execute("DELETE FROM derivations WHERE parent_symbol_id=?", (sid,))
         for lang, text in g.items():
             if text:
                 for var in label_variants(text):

@@ -54,7 +54,8 @@ def main() -> None:
         CREATE TABLE symbols (
             key TEXT PRIMARY KEY, pos TEXT, gloss_en TEXT,
             pua_stable TEXT, proposed_unicode TEXT,
-            blissary_code TEXT, winbliss TEXT, category TEXT
+            blissary_code TEXT, winbliss TEXT, category TEXT,
+            explanation TEXT
         );
         CREATE TABLE labels (symbol_key TEXT, lang TEXT, text TEXT, norm TEXT);
         CREATE INDEX idx_labels_norm ON labels(norm);
@@ -85,12 +86,12 @@ def main() -> None:
     ):
         extra = json.loads(r["extra"] or "{}")
         dst.execute(
-            "INSERT INTO symbols VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO symbols VALUES (?,?,?,?,?,?,?,?,?)",
             (
                 r["key"], r["pos"], r["gloss_en"],
                 extra.get("pua_stable"), extra.get("proposed_unicode"),
                 extra.get("bliss_svg_builder_code"), extra.get("winbliss"),
-                extra.get("category"),
+                extra.get("category"), extra.get("explanation_blissary"),
             ),
         )
         n_sym += 1

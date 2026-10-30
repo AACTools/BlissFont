@@ -91,7 +91,7 @@ async function init() {
   const status = document.getElementById('status');
   status.textContent = 'loading resolver (~11 MB gzipped)…';
   const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
-  const res = await fetch('data/web/bliss_resolver.bin?v=20261028-2');
+  const res = await fetch('data/web/bliss_resolver.bin?v=20261030');
   db = new SQL.Database(new Uint8Array(await res.arrayBuffer()));
   status.textContent = 'ready';
   render();

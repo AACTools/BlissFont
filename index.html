@@ -2051,7 +2051,7 @@
       const status = document.getElementById('hub-status');
       status.textContent = 'loading sql.js + database (~12 MB gzipped, one-off)…';
       try {
-        hubDb = await Resolver.load('data/web/bliss_resolver.bin?v=20261028-2');
+        hubDb = await Resolver.load('data/web/bliss_resolver.bin?v=20261030');
         const n = hubDb.exec("SELECT COUNT(*) FROM symbols")[0].values[0][0];
         const langs = hubDb.exec("SELECT COUNT(DISTINCT lang) FROM labels")[0].values[0][0];
         status.textContent = `ready: ${n.toLocaleString()} symbols, ${langs} languages, client-side`;

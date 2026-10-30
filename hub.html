@@ -52,7 +52,7 @@ let db = null;
 
 async function init() {
   const t0 = performance.now();
-  db = await Resolver.load('data/web/bliss_resolver.bin?v=20261028-2');
+  db = await Resolver.load('data/web/bliss_resolver.bin?v=20261030');
   const n = db.exec("SELECT COUNT(*) FROM symbols")[0].values[0][0];
   const langs = db.exec("SELECT COUNT(DISTINCT lang) FROM labels")[0].values[0][0];
   document.getElementById('status').textContent =
@@ -102,6 +102,10 @@ function doSearch() {
 
 function detail(key) {
   let html = '';
+  const e = db.exec("SELECT explanation FROM symbols WHERE key = ?", [key]);
+  if (e.length && e[0].values[0][0]) {
+    html += '<p style="margin:6px 0;font-size:13px;color:#c9d1d9;"><b>why:</b> ' + esc(e[0].values[0][0]) + '</p>';
+  }
   const d = db.exec(
     `SELECT component_key, component_gloss FROM derivations WHERE parent_key = ?`, [key]);
   if (d.length) {
